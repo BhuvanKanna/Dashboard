@@ -69,7 +69,8 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .stat.ok{color:var(--muted)}.stat.ok .dot{background:var(--ok)}
 .stat.err{color:var(--alert);border-color:rgba(255,45,85,.4)}.stat.err .dot{background:var(--alert)}
 
-.body{display:flex;gap:var(--gap);padding:var(--pad);height:calc(100vh - var(--top));align-items:stretch}
+.body{display:flex;flex-direction:column;gap:var(--gap);padding:var(--pad);height:calc(100vh - var(--top))}
+.row{flex:1;min-height:0;display:flex;gap:var(--gap);align-items:stretch}
 
 /* ── control panel — sits UNDER the calendar, click-to-expand, closed by default ── */
 .side{flex-shrink:0;position:relative;display:flex;flex-direction:column;
@@ -131,7 +132,7 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 /* ── main column — left half only, and a little under half at that ── */
 .main{flex:0 0 48%;max-width:48%;min-width:0;display:flex;flex-direction:column;overflow:hidden;gap:13px}
 /* hiding the tasks rail hands the freed width back to the calendar */
-.body:has(.rail.hide) .main{flex:1 1 auto;max-width:100%}
+.row:has(.rail.hide) .main{flex:1 1 auto;max-width:100%}
 
 /* upcoming strip */
 .upnav{display:flex;align-items:center;gap:8px;flex-shrink:0}
@@ -299,7 +300,8 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 /* too narrow for a side-by-side split — stack and let .body scroll */
 @media(max-width:1250px){
   :root{--gap:14px;--pad:14px}
-  .body{flex-direction:column;overflow-y:auto}
+  .body{overflow-y:auto}
+  .row{flex-direction:column}
   .main{flex:none;max-width:100%}
   .calshell{min-height:560px}
   .rail{flex:none;min-height:360px}
@@ -505,9 +507,10 @@ function render(){
     ${S.signedIn?`<button class="tbtn" id="out">Sign out</button>`:""}
   </div>
   <div class="body">
+    ${S.signedIn?upcomingHTML():""}
+    <div class="row">
     <div class="main">
       ${S.error?`<div class="banner">${esc(S.error)}<button id="dis">✕</button></div>`:""}
-      ${S.signedIn?upcomingHTML():""}
       <div class="calshell hud"><span class="br1"></span><span class="br2"></span>
         ${S.signedIn?(S.view==="month"?monthView():weekView()):gate()}
       </div>
@@ -541,6 +544,7 @@ function render(){
       <div class="railhd"><h2>Tasks</h2><span class="n">${S.tasks.filter(t=>!t.done).length} open</span></div>
       <div class="railbody">${S.cats.map(modHTML).join("")}
         <div class="newcat"><input id="newcat" placeholder="+ new category"></div></div>
+    </div>
     </div>
   </div>
   ${S.modal?modalHTML():""}`;
