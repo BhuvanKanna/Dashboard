@@ -11,7 +11,8 @@
   --edge:#1E1733;--edge2:#2E2450;--hair:rgba(139,92,246,.13);
   --violet:#8B5CF6;--violet-hot:#B98BFF;--cyan:#22D3EE;--alert:#FF2D55;--alert-hot:#FF6B85;--ok:#33D69F;
   --text:#E9E4FA;--muted:#7D739C;--faint:#4A4166;
-  --top:52px;--side:206px;--rail:296px;--hourH:42px;
+  /* --minHour is the shortest an hour row may get before the grid starts scrolling */
+  --top:52px;--minHour:26px;--gap:18px;--pad:22px;
 }
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;overflow:hidden;background:var(--void);color:var(--text);
@@ -68,12 +69,22 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .stat.ok{color:var(--muted)}.stat.ok .dot{background:var(--ok)}
 .stat.err{color:var(--alert);border-color:rgba(255,45,85,.4)}.stat.err .dot{background:var(--alert)}
 
-.body{display:flex;height:calc(100vh - var(--top))}
+.body{display:flex;gap:var(--gap);padding:var(--pad);height:calc(100vh - var(--top));align-items:stretch}
 
-/* ── sidebar ── */
-.side{width:var(--side);flex-shrink:0;border-right:1px solid var(--edge);padding:11px 9px;overflow-y:auto;
-  background:linear-gradient(180deg,rgba(139,92,246,.04),transparent 45%)}
+/* ── control panel — sits UNDER the calendar, laid out as columns ── */
+.side{flex-shrink:0;position:relative;display:flex;gap:16px;align-items:flex-start;padding:11px 13px;
+  border:1px solid var(--edge);
+  background:linear-gradient(180deg,rgba(139,92,246,.05),rgba(3,3,7,.45))}
 .side.hide{display:none}
+.sidecol{min-width:0;display:flex;flex-direction:column}
+.sidecol.minicol{width:184px;flex-shrink:0}
+.sidecol.calscol{flex:1;min-width:132px}
+.sidecol.syscol{width:164px;flex-shrink:0}
+.callist{overflow-y:auto;max-height:116px}
+.callist .none{font-size:.64rem;color:var(--faint)}
+.side .sechd{margin:0 0 6px}
+.side .mini{margin:10px 0 0}
+.side .readout{margin-top:9px}
 .create{width:100%;background:linear-gradient(135deg,rgba(139,92,246,.9),rgba(93,45,214,.9));border:1px solid var(--violet-hot);
   color:#07050E;font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:.75rem;letter-spacing:.14em;
   text-transform:uppercase;padding:9px;cursor:pointer}
@@ -109,8 +120,10 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .readout div b{color:var(--muted);font-weight:500}
 .readout div.hot b{color:var(--alert-hot)}
 
-/* ── main column ── */
-.main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden;padding:11px 13px 13px;gap:10px}
+/* ── main column — left half only, and a little under half at that ── */
+.main{flex:0 0 48%;max-width:48%;min-width:0;display:flex;flex-direction:column;overflow:hidden;gap:13px}
+/* hiding the tasks rail hands the freed width back to the calendar */
+.body:has(.rail.hide) .main{flex:1 1 auto;max-width:100%}
 
 /* upcoming strip */
 .upnav{display:flex;align-items:center;gap:8px;flex-shrink:0}
@@ -153,14 +166,18 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .allday .gut{border-right:1px solid var(--edge);font-family:'JetBrains Mono',monospace;font-size:.43rem;
   color:var(--faint);text-align:right;padding:2px 4px 0 0}
 .adc{border-right:1px solid rgba(30,23,51,.7);padding:2px;display:flex;flex-direction:column;gap:2px}
-.scroller{flex:1;overflow-y:auto;overflow-x:hidden}
-.wkgrid{display:grid;position:relative}
-.gutcol{border-right:1px solid var(--edge)}
-.gutcol div{height:var(--hourH);font-family:'JetBrains Mono',monospace;font-size:.48rem;color:var(--faint);
+.scroller{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden}
+/* Rows flex to fill the shell exactly, so 6 AM → 12:30 AM always fits with no dead space.
+   min-height is the floor: on a short window rows stop shrinking and the grid scrolls. */
+.wkgrid{display:grid;position:relative;height:100%;min-height:calc(var(--minHour)*18.5)}
+.gutcol{border-right:1px solid var(--edge);display:flex;flex-direction:column;min-height:0}
+.gutcol div{flex:1 1 0;font-family:'JetBrains Mono',monospace;font-size:.48rem;color:var(--faint);
   text-align:right;padding-right:5px;transform:translateY(-5px)}
-.daycol{border-right:1px solid rgba(30,23,51,.7);position:relative}
+.gutcol div.half{flex:.5 1 0}
+.daycol{border-right:1px solid rgba(30,23,51,.7);position:relative;display:flex;flex-direction:column;min-height:0}
 .daycol.today{background:rgba(34,211,238,.028)}
-.hrline{height:var(--hourH);border-bottom:1px solid rgba(30,23,51,.55)}
+.hrline{flex:1 1 0;border-bottom:1px solid rgba(30,23,51,.55)}
+.hrline.half{flex:.5 1 0}
 .nowline{position:absolute;left:0;right:0;border-top:1px solid var(--alert);z-index:6;pointer-events:none}
 .nowline::before{content:'';position:absolute;left:-3px;top:-3px;width:5px;height:5px;background:var(--alert)}
 .ev{position:absolute;padding:1px 4px;overflow:hidden;cursor:pointer;z-index:4;font-size:.62rem;
@@ -185,15 +202,16 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .more{font-family:'JetBrains Mono',monospace;font-size:.48rem;color:var(--faint);padding-left:3px}
 
 /* ── tasks rail ── */
-.rail{width:var(--rail);flex-shrink:0;border-left:1px solid var(--edge);display:flex;flex-direction:column;
+.rail{flex:1;min-width:0;border:1px solid var(--edge);display:flex;flex-direction:column;
   background:linear-gradient(180deg,rgba(139,92,246,.04),transparent 35%);overflow:hidden}
 .rail.hide{display:none}
 .railhd{display:flex;align-items:center;gap:8px;padding:8px 11px;border-bottom:1px solid var(--edge);flex-shrink:0}
 .railhd h2{font-family:'Chakra Petch',sans-serif;font-size:.68rem;font-weight:700;letter-spacing:.22em;
   text-transform:uppercase;margin:0}
 .railhd .n{font-family:'JetBrains Mono',monospace;font-size:.53rem;color:var(--faint);margin-left:auto}
-.railbody{flex:1;overflow-y:auto;padding:8px}
-.mod{border:1px solid var(--edge);background:linear-gradient(180deg,var(--panel2),rgba(8,7,14,.6));margin-bottom:7px}
+.railbody{flex:1;overflow-y:auto;padding:10px;display:grid;align-content:start;gap:9px;
+  grid-template-columns:repeat(auto-fill,minmax(232px,1fr))}
+.mod{border:1px solid var(--edge);background:linear-gradient(180deg,var(--panel2),rgba(8,7,14,.6));align-self:start}
 .mod.hot{border-color:rgba(255,45,85,.4)}
 .mod header{display:flex;align-items:center;gap:6px;padding:5px 9px;border-bottom:1px solid rgba(30,23,51,.8);cursor:pointer}
 .mod header h3{font-family:'Chakra Petch',sans-serif;font-size:.61rem;font-weight:600;letter-spacing:.09em;
@@ -228,6 +246,7 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .addrow button{background:rgba(139,92,246,.15);border:1px solid var(--violet);color:var(--violet-hot);
   font-size:.57rem;padding:3px 6px;cursor:pointer}
 .addrow button:hover{background:var(--violet);color:#07050E}
+.newcat{grid-column:1/-1}
 .newcat input{width:100%;background:rgba(0,0,0,.35);border:1px dashed var(--edge);color:var(--text);
   padding:5px 7px;font-size:.63rem;outline:none;margin-top:4px}
 
@@ -273,8 +292,18 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .gate{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:13px;text-align:center;padding:20px}
 .gate h2{font-family:'Chakra Petch',sans-serif;letter-spacing:.16em;text-transform:uppercase;font-size:.95rem;margin:0}
 .gate p{color:var(--muted);font-size:.76rem;max-width:340px;margin:0;line-height:1.5}
-@media(max-width:1150px){.rail{position:absolute;right:0;top:var(--top);height:calc(100% - var(--top));z-index:15;background:var(--panel)}}
-@media(max-width:860px){.side{position:absolute;z-index:16;height:100%;background:var(--panel)}}
+/* too narrow for a side-by-side split — stack and let .body scroll */
+@media(max-width:1250px){
+  :root{--gap:14px;--pad:14px}
+  .body{flex-direction:column;overflow-y:auto}
+  .main{flex:none;max-width:100%}
+  .calshell{min-height:560px}
+  .rail{flex:none;min-height:360px}
+}
+@media(max-width:760px){
+  .side{flex-wrap:wrap}
+  .sidecol.calscol,.sidecol.syscol{flex:1 1 100%;width:auto}
+}
 </style>
 </head>
 <body>
@@ -290,6 +319,13 @@ const PALETTE=["#8B5CF6","#22D3EE","#FF2D55","#33D69F","#F6BF26","#F4511E","#E67
 const DOW=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const MON=["January","February","March","April","May","June","July","August","September","October","November","December"];
 const LS={prefs:"bd.prefs",tasks:"bd.tasks"};
+// Visible day window: 6 AM through 12:30 AM. The half hour past midnight exists so a
+// 11:59 PM item renders at full height instead of being clipped by the grid bottom.
+const DAY_START=6,DAY_END=24.5,SPAN_H=DAY_END-DAY_START;
+// Rows flex to fill the shell and events are placed in percentages, so the whole
+// 6 AM → 12:30 AM window always fits exactly — no px fitting, no measuring, no resize pass.
+const PCT_MIN=(25/60)/SPAN_H*100;   // 25-minute floor, as a share of the window
+const hourLabel=i=>{const x=i%24;return x===0?"12 AM":x===12?"12 PM":x>12?(x-12)+" PM":x+" AM"};
 const SEED_CATS=["C S 429","NEU 330","SDS 321","CH 320M","PSY 301","Pierce Lab","Avocado Health","ACC"];
 const SEED_TASKS=[
  {id:"s1",cat:"Pierce Lab",text:"Generate histograms",tag:"General",due:null,done:false},
@@ -468,16 +504,6 @@ function render(){
     ${S.signedIn?`<button class="tbtn" id="out">Sign out</button>`:""}
   </div>
   <div class="body">
-    <div class="side ${S.sideHide?"hide":""}">
-      <button class="create" id="create">+ Create Event</button>
-      ${miniMonth()}
-      <div class="sechd">Calendars</div>
-      <div>${S.cals.length?S.cals.map(calRow).join(""):'<div style="font-size:.64rem;color:var(--faint)">—</div>'}</div>
-      <div class="sechd">Auto-refresh</div>
-      <select id="ivl">${[[0,"Off"],[1,"1 min"],[5,"5 min"],[15,"15 min"]].map(([v,l])=>
-        `<option value="${v}" ${S.interval===v?"selected":""}>${l}</option>`).join("")}</select>
-      ${readout()}
-    </div>
     <div class="main">
       ${S.error?`<div class="banner">${esc(S.error)}<button id="dis">✕</button></div>`:""}
       ${S.signedIn?upcomingHTML():""}
@@ -485,6 +511,22 @@ function render(){
         <div class="calbar"><span>◈ Calendar</span><span class="ln"></span>
           <span>${S.view.toUpperCase()}</span><span>·</span><span>${S.events.length} events</span></div>
         ${S.signedIn?(S.view==="month"?monthView():weekView()):gate()}
+      </div>
+      <div class="side hud ${S.sideHide?"hide":""}"><span class="br1"></span><span class="br2"></span>
+        <div class="sidecol minicol">
+          <button class="create" id="create">+ Create Event</button>
+          ${miniMonth()}
+        </div>
+        <div class="sidecol calscol">
+          <div class="sechd">Calendars</div>
+          <div class="callist">${S.cals.length?S.cals.map(calRow).join(""):'<div class="none">—</div>'}</div>
+        </div>
+        <div class="sidecol syscol">
+          <div class="sechd">Auto-refresh</div>
+          <select id="ivl">${[[0,"Off"],[1,"1 min"],[5,"5 min"],[15,"15 min"]].map(([v,l])=>
+            `<option value="${v}" ${S.interval===v?"selected":""}>${l}</option>`).join("")}</select>
+          ${readout()}
+        </div>
       </div>
     </div>
     <div class="rail ${S.railHide?"hide":""}">
@@ -495,7 +537,7 @@ function render(){
   </div>
   ${S.modal?modalHTML():""}`;
   setStat(S.status,S.error);wire();
-  if(S.signedIn&&S.view!=="month"){const sc=document.querySelector(".scroller");if(sc)sc.scrollTop=7*42-8}
+  if(S.signedIn&&S.view!=="month"){const sc=document.querySelector(".scroller");if(sc)sc.scrollTop=0}
 }
 function readout(){
   const u=urgentTasks().length,open=S.tasks.filter(t=>!t.done).length;
@@ -549,20 +591,28 @@ function weekView(){
   days.forEach(d=>{h+=`<div class="adc">${onDay(d).filter(e=>e.allDay).map(e=>
     `<div class="chip" data-ev="${esc(e.id)}|${esc(e.calId)}" style="background:${tint(col(e.calId),.2)};border-left-color:${col(e.calId)}">${esc(e.title)}</div>`).join("")}</div>`});
   h+=`</div><div class="scroller"><div class="wkgrid" style="${gc}"><div class="gutcol">`;
-  for(let i=0;i<24;i++)h+=`<div>${i===0?"":i===12?"12 PM":i>12?(i-12)+" PM":i+" AM"}</div>`;
-  h+="</div>";
+  for(let i=DAY_START;i<24;i++)h+=`<div>${hourLabel(i)}</div>`;
+  h+=`<div class="half">${hourLabel(24)}</div></div>`;
   days.forEach(d=>{
     const isT=sameDay(d,td);h+=`<div class="daycol ${isT?"today":""}" data-day="${iso(d)}">`;
-    for(let i=0;i<24;i++)h+=`<div class="hrline"></div>`;
+    for(let i=DAY_START;i<24;i++)h+=`<div class="hrline"></div>`;
+    h+=`<div class="hrline half"></div>`;
     const timed=onDay(d).filter(e=>!e.allDay),L=lay(timed);
-    timed.forEach(e=>{const p=L.get(e),top=mins(e.start)/60*42;
-      let dur=(e.end-e.start)/60000;if(dur<25)dur=25;
+    timed.forEach(e=>{const p=L.get(e);
+      let durH=(e.end-e.start)/36e5;if(durH<25/60)durH=25/60;
+      // Clamp into the visible window. Anything starting before 6 AM still renders as a
+      // sliver at the top rather than vanishing — its real time stays in the label.
+      let top=(mins(e.start)/60-DAY_START)/SPAN_H*100,hgt=durH/SPAN_H*100;
+      if(top<0){hgt+=top;top=0}
+      top=Math.min(top,100-PCT_MIN);
+      hgt=Math.max(PCT_MIN,Math.min(hgt,100-top));
       const w=100/p.n,c2=col(e.calId);
       h+=`<div class="ev" data-ev="${esc(e.id)}|${esc(e.calId)}"
-        style="top:${top}px;height:${dur/60*42}px;left:calc(${p.i*w}% + 1px);width:calc(${w}% - 2px);
+        style="top:${top.toFixed(3)}%;height:${hgt.toFixed(3)}%;left:calc(${p.i*w}% + 1px);width:calc(${w}% - 2px);
         background:${tint(c2,.22)};border-left-color:${c2};color:${c2}">
         <b>${esc(e.title)}</b><em>${fmtT(e.start)}</em></div>`});
-    if(isT)h+=`<div class="nowline" style="top:${mins(new Date())/60*42}px"></div>`;
+    if(isT){const nh=mins(new Date())/60;
+      if(nh>=DAY_START&&nh<=DAY_END)h+=`<div class="nowline" style="top:${((nh-DAY_START)/SPAN_H*100).toFixed(3)}%"></div>`}
     h+="</div>"});
   return h+"</div></div>"}
 function monthView(){
@@ -673,7 +723,8 @@ function wire(){
     if(ev){S.modal={type:"edit",form:editForm(ev),ev,recurring:ev.recurring};render()}});
   $$(".daycol").forEach(c=>c.ondblclick=e=>{if(e.target.closest(".ev"))return;
     const r=c.getBoundingClientRect();
-    S.modal={type:"new",form:newForm(c.dataset.day,Math.floor((e.clientY-r.top)/42))};render()});
+    const hr=Math.min(23,Math.max(0,Math.floor(DAY_START+(e.clientY-r.top)/r.height*SPAN_H)));
+    S.modal={type:"new",form:newForm(c.dataset.day,hr)};render()});
   $$("[data-close]").forEach(el=>el.onclick=e=>{if(e.target===el){S.modal=null;render()}});
   $$("[data-pick]").forEach(b=>b.onclick=()=>{S.colors[S.modal.calId]=b.dataset.pick;savePrefs();S.modal=null;render()});
   const fa=$("#f-a");if(fa)fa.onchange=()=>{readForm();S.modal.form.allDay=fa.checked;render()};
@@ -706,7 +757,8 @@ function wire(){
 }
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&S.modal){S.modal=null;render()}});
 setInterval(()=>{if(!S.signedIn||S.view==="month"||S.modal)return;
-  const nl=document.querySelector(".nowline");if(nl)nl.style.top=(mins(new Date())/60*42)+"px"},30000);
+  const nl=document.querySelector(".nowline");
+  if(nl)nl.style.top=((mins(new Date())/60-DAY_START)/SPAN_H*100).toFixed(3)+"%"},30000);
 loadLocal();render();initAuth();
 </script>
 </body>
