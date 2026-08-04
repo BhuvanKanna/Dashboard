@@ -12,7 +12,7 @@
   --violet:#8B5CF6;--violet-hot:#B98BFF;--cyan:#22D3EE;--alert:#FF2D55;--alert-hot:#FF6B85;--ok:#33D69F;
   --text:#E9E4FA;--muted:#7D739C;--faint:#4A4166;
   /* --minHour is the shortest an hour row may get before the grid starts scrolling */
-  --top:52px;--minHour:26px;--gap:18px;--pad:22px;
+  --minHour:26px;--gap:18px;--pad:22px;
 }
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;overflow:hidden;background:var(--void);color:var(--text);
@@ -40,16 +40,6 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .hud>.br2{bottom:-1px;left:-1px;border-bottom:1px solid var(--violet);border-left:1px solid var(--violet)}
 .clip{clip-path:polygon(9px 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,0 100%,0 9px)}
 
-/* ── top bar ── */
-.top{height:var(--top);display:flex;align-items:center;gap:11px;padding:0 14px;position:relative;
-  border-bottom:1px solid var(--edge);background:linear-gradient(180deg,rgba(139,92,246,.07),rgba(2,2,6,.6))}
-.top::after{content:'';position:absolute;left:0;bottom:-1px;width:100%;height:1px;
-  background:linear-gradient(90deg,var(--cyan) 0,var(--violet) 12%,transparent 42%)}
-.brandwrap{display:flex;align-items:baseline;gap:9px;padding-right:12px;border-right:1px solid var(--edge)}
-.logo{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:.95rem;letter-spacing:.2em;
-  text-transform:uppercase;color:var(--text);white-space:nowrap}
-.logo b{color:var(--violet-hot)}
-.vtag{font-family:'JetBrains Mono',monospace;font-size:.5rem;color:var(--faint);letter-spacing:.16em}
 .tbtn{background:rgba(139,92,246,.07);border:1px solid var(--edge);color:var(--muted);padding:5px 10px;
   font-size:.72rem;cursor:pointer;white-space:nowrap}
 .tbtn:hover{border-color:var(--violet);color:var(--violet-hot);background:rgba(139,92,246,.14)}
@@ -69,7 +59,7 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .stat.ok{color:var(--muted)}.stat.ok .dot{background:var(--ok)}
 .stat.err{color:var(--alert);border-color:rgba(255,45,85,.4)}.stat.err .dot{background:var(--alert)}
 
-.body{display:flex;flex-direction:column;gap:var(--gap);padding:var(--pad);height:calc(100vh - var(--top))}
+.body{display:flex;flex-direction:column;gap:var(--gap);padding:var(--pad);height:100vh}
 .row{flex:1;min-height:0;display:flex;gap:var(--gap);align-items:stretch}
 
 /* ── control panel — sits UNDER the calendar, click-to-expand, closed by default ── */
@@ -496,16 +486,6 @@ function urgentTasks(){
 function render(){
   const r=document.getElementById("root");
   r.innerHTML=`
-  <div class="top">
-    <div class="brandwrap"><div class="logo">Bhuvan's <b>Dashboard</b></div><span class="vtag">v2.0</span></div>
-    <button class="tbtn" id="today">Today</button>
-    <div><button class="arrow" id="prev">‹</button><button class="arrow" id="next">›</button></div>
-    <div class="period">${label()}</div>
-    <div class="grow"></div>
-    <div id="stat" class="stat"><span class="dot"></span>idle</div>
-    <button class="tbtn" id="rf">Refresh</button>
-    ${S.signedIn?`<button class="tbtn" id="out">Sign out</button>`:""}
-  </div>
   <div class="body">
     ${S.signedIn?upcomingHTML():""}
     <div class="row">
@@ -517,6 +497,9 @@ function render(){
       <div class="side hud ${S.sideHide?"closed":""}"><span class="br1"></span><span class="br2"></span>
         <div class="panelhd">
           <button class="foldbtn" data-foldpanel><span class="caret">▾</span>Controls</button>
+          <button class="tbtn" id="today">Today</button>
+          <div><button class="arrow" id="prev">‹</button><button class="arrow" id="next">›</button></div>
+          <div class="period">${label()}</div>
           <div class="seg">${["day","week","month"].map(v=>
             `<button data-v="${v}" class="${S.view===v?"on":""}">${v}</button>`).join("")}</div>
           <div class="grow"></div>
@@ -569,7 +552,10 @@ function upcomingHTML(){
     sub:t.cat+" · "+t.tag,id:t.id}));
   let all=[...evs,...tks].sort((a,b)=>{
     if(a.when&&b.when)return a.when-b.when;if(a.when)return -1;if(b.when)return 1;return 0}).slice(0,12);
-  let h=`<div class="upnav"><h2>◤ Upcoming</h2><div class="ln"></div><span class="ct">${all.length} items · next 10 days</span></div>`;
+  let h=`<div class="upnav"><h2>◤ Upcoming</h2><div class="ln"></div><span class="ct">${all.length} items · next 10 days</span>
+    <div id="stat" class="stat"><span class="dot"></span>idle</div>
+    <button class="tbtn" id="rf">Refresh</button>
+    <button class="tbtn" id="out">Sign out</button></div>`;
   if(!all.length)return h+`<div class="upstrip"><div class="upempty">NOTHING URGENT — ALL CLEAR</div></div>`;
   h+=`<div class="upstrip">`;
   all.forEach(x=>{
@@ -713,7 +699,7 @@ function wire(){
   $("#railtog").onclick=()=>{S.railHide=!S.railHide;savePrefs();render()};
   $("#today").onclick=()=>{S.cursor=new Date();S.mini=new Date();render();refresh()};
   $("#prev").onclick=()=>step(-1);$("#next").onclick=()=>step(1);
-  $("#rf").onclick=()=>refresh();
+  const rf=$("#rf");if(rf)rf.onclick=()=>refresh();
   const o=$("#out");if(o)o.onclick=signOut;
   const cn=$("#connect");if(cn)cn.onclick=()=>connect(true);
   const ds=$("#dis");if(ds)ds.onclick=()=>{S.error=null;render()};
