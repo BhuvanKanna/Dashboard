@@ -1,0 +1,6 @@
+# Local-only context and notes. These contain personal details (schedule,
+# room numbers, email addresses) and must never reach this public repo.
+CLAUDE.md
+TASKS.md
+
+.cursor/
