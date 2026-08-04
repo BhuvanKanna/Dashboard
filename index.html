@@ -213,6 +213,13 @@ button,input,select,textarea{font-family:inherit;color:inherit}
   text-transform:uppercase;margin:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mod.hot header h3{color:var(--alert-hot)}
 .mod header .ct{font-family:'JetBrains Mono',monospace;font-size:.51rem;color:var(--faint)}
+.catedit{opacity:0;background:none;border:none;color:var(--faint);cursor:pointer;font-size:.6rem;
+  padding:0 2px;flex-shrink:0}
+.mod header:hover .catedit{opacity:1}
+.catedit:hover{color:var(--violet-hot)}
+.catinput{flex:1;min-width:0;background:rgba(0,0,0,.6);border:1px solid var(--violet);color:var(--text);
+  font-family:'Chakra Petch',sans-serif;font-size:.61rem;font-weight:600;letter-spacing:.09em;
+  text-transform:uppercase;padding:1px 4px;outline:none}
 .caret{color:var(--faint);font-size:.55rem}
 .mod.closed .caret{transform:rotate(-90deg);display:inline-block}
 .mod.closed ul,.mod.closed .addrow,.mod.closed .hollow{display:none}
@@ -222,11 +229,14 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .box{width:10px;height:10px;flex-shrink:0;margin-top:3px;border:1px solid var(--faint);cursor:pointer}
 .box:hover{border-color:var(--violet-hot)}
 .box.on{background:var(--violet);border-color:var(--violet-hot)}
-.txt{flex:1;font-size:.69rem;line-height:1.2;min-width:0;word-break:break-word}
+.txt{flex:1;font-size:.69rem;line-height:1.2;min-width:0;word-break:break-word;cursor:text}
 .txt.on{color:var(--faint);text-decoration:line-through;text-decoration-color:var(--violet)}
 .sub{font-family:'JetBrains Mono',monospace;font-size:.5rem;color:var(--muted);margin-top:1px}
+.txtinput{width:100%;background:rgba(0,0,0,.6);border:1px solid var(--violet);color:var(--text);
+  font-family:inherit;font-size:.69rem;line-height:1.2;padding:1px 3px;outline:none}
 .tag{font-family:'JetBrains Mono',monospace;font-size:.44rem;letter-spacing:.1em;text-transform:uppercase;
-  padding:1px 3px;border:1px solid;flex-shrink:0;margin-top:2px}
+  padding:1px 3px;border:1px solid;flex-shrink:0;margin-top:2px;cursor:pointer}
+.tag:hover{filter:brightness(1.3)}
 .tag.ASAP,.tag.Deadline{color:var(--alert-hot);border-color:rgba(255,45,85,.5);background:rgba(255,45,85,.12)}
 .tag.General{color:var(--violet-hot);border-color:rgba(139,92,246,.35);background:rgba(139,92,246,.08)}
 .x{opacity:0;background:none;border:none;color:var(--faint);cursor:pointer;font-size:.58rem;padding:0 1px}
@@ -324,6 +334,7 @@ const DAY_START=6,DAY_END=24.5,SPAN_H=DAY_END-DAY_START;
 const PCT_MIN=(25/60)/SPAN_H*100;   // 25-minute floor, as a share of the window
 const hourLabel=i=>{const x=i%24;return x===0?"12 AM":x===12?"12 PM":x>12?(x-12)+" PM":x+" AM"};
 const SEED_CATS=["C S 429","NEU 330","SDS 321","CH 320M","PSY 301","Pierce Lab","Avocado Health","ACC"];
+const TAGS=["General","ASAP","Deadline"];
 const SEED_TASKS=[
  {id:"s1",cat:"Pierce Lab",text:"Generate histograms",tag:"General",due:null,done:false},
  {id:"s2",cat:"Avocado Health",text:"Kullberg info",tag:"General",due:null,done:false},
@@ -332,7 +343,8 @@ const SEED_TASKS=[
 
 let S={view:"week",cursor:new Date(),mini:new Date(),cals:[],events:[],upcoming:[],
   vis:{},colors:{},collapsed:{},interval:5,cats:SEED_CATS.slice(),tasks:SEED_TASKS.slice(),
-  status:"idle",error:null,modal:null,saving:false,signedIn:false,sideHide:true,railHide:false};
+  status:"idle",error:null,modal:null,saving:false,signedIn:false,sideHide:true,railHide:false,
+  editTask:null,editCat:null};
 
 function savePrefs(){localStorage.setItem(LS.prefs,JSON.stringify({vis:S.vis,colors:S.colors,view:S.view,
   interval:S.interval,collapsed:S.collapsed,cats:S.cats,sideHide:S.sideHide,railHide:S.railHide}))}
@@ -482,6 +494,22 @@ function urgentTasks(){
   return S.tasks.filter(t=>!t.done&&(t.tag==="ASAP"||t.tag==="Deadline"))
     .sort((a,b)=>{if(a.due&&b.due)return new Date(a.due)-new Date(b.due);
       if(a.due)return -1;if(b.due)return 1;return 0})}
+function commitTaskEdit(id){
+  const inp=document.querySelector("[data-tedit-input]");
+  if(!inp){S.editTask=null;return}
+  const val=inp.value.trim(),t=S.tasks.find(x=>x.id===id);
+  if(t&&val)t.text=val;
+  S.editTask=null;saveTasks();render()}
+function commitCatRename(oldCat){
+  const inp=document.querySelector("[data-catedit-input]");
+  if(!inp){S.editCat=null;return}
+  const val=inp.value.trim();
+  if(!val||val===oldCat){S.editCat=null;render();return}
+  if(S.cats.includes(val)){toast(`"${val}" already exists`,true);S.editCat=null;render();return}
+  const idx=S.cats.indexOf(oldCat);if(idx>-1)S.cats[idx]=val;
+  S.tasks.forEach(t=>{if(t.cat===oldCat)t.cat=val});
+  if(oldCat in S.collapsed){S.collapsed[val]=S.collapsed[oldCat];delete S.collapsed[oldCat]}
+  S.editCat=null;savePrefs();saveTasks();render();toast("Renamed to "+val)}
 
 function render(){
   const r=document.getElementById("root");
@@ -627,15 +655,22 @@ function monthView(){
 function modHTML(cat){
   const list=S.tasks.filter(t=>t.cat===cat),openN=list.filter(t=>!t.done).length;
   const hot=list.some(t=>!t.done&&(t.tag==="ASAP"||t.tag==="Deadline"));
+  const editingCat=S.editCat===cat;
   let h=`<div class="mod ${hot?"hot":""} ${S.collapsed[cat]?"closed":""}">
-    <header data-fold="${esc(cat)}"><span class="caret">▾</span><h3>${esc(cat)}</h3><span class="ct">${openN}/${list.length}</span></header>`;
+    <header data-fold="${esc(cat)}"><span class="caret">▾</span>${editingCat
+      ?`<input class="catinput" data-catedit-input value="${esc(cat)}">`
+      :`<h3>${esc(cat)}</h3><button class="catedit" data-catedit="${esc(cat)}" title="Rename category">✎</button>`}
+      <span class="ct">${openN}/${list.length}</span></header>`;
   if(!list.length)h+=`<div class="hollow">Nothing yet.</div>`;
   else{h+="<ul>";list.forEach(t=>{
+    const editingTask=S.editTask===t.id;
     h+=`<li><div class="box ${t.done?"on":""}" data-tg="${t.id}" role="checkbox" tabindex="0" aria-checked="${t.done}"></div>
-      <div class="txt ${t.done?"on":""}">${esc(t.text)}${t.due?`<div class="sub">${new Date(t.due).toLocaleString(undefined,{weekday:"short",month:"numeric",day:"numeric",hour:"numeric",minute:"2-digit"})}</div>`:""}</div>
-      <span class="tag ${t.tag}">${t.tag}</span><button class="x" data-rm="${t.id}">✕</button></li>`});h+="</ul>"}
+      <div class="txt ${t.done?"on":""}" ${editingTask?"":`data-tedit="${t.id}"`}>${editingTask
+        ?`<input class="txtinput" data-tedit-input value="${esc(t.text)}">`
+        :esc(t.text)}${t.due?`<div class="sub">${new Date(t.due).toLocaleString(undefined,{weekday:"short",month:"numeric",day:"numeric",hour:"numeric",minute:"2-digit"})}</div>`:""}</div>
+      <span class="tag ${t.tag}" data-tagcycle="${t.id}" title="Click to change priority">${t.tag}</span><button class="x" data-rm="${t.id}">✕</button></li>`});h+="</ul>"}
   return h+`<div class="addrow"><input data-in="${esc(cat)}" placeholder="Add">
-    <select data-sel="${esc(cat)}"><option>General</option><option>ASAP</option><option>Deadline</option></select>
+    <select data-sel="${esc(cat)}">${TAGS.map(t=>`<option>${t}</option>`).join("")}</select>
     <button data-add="${esc(cat)}">+</button></div></div>`}
 function modalHTML(){
   const m=S.modal;
@@ -737,6 +772,23 @@ function wire(){
       S.modal=null;S.saving=false;await refresh();toast("Deleted · "+f.title)}
     catch(err){S.saving=false;setStat("err",err.message);render();toast(err.message,true)}};
   $$("[data-fold]").forEach(h=>h.onclick=()=>{const c=h.dataset.fold;S.collapsed[c]=!S.collapsed[c];savePrefs();render()});
+  $$("[data-catedit]").forEach(b=>b.onclick=e=>{e.stopPropagation();S.editCat=b.dataset.catedit;render();
+    const inp=document.querySelector("[data-catedit-input]");if(inp){inp.focus();inp.select()}});
+  const ciEl=$("[data-catedit-input]");
+  if(ciEl){ciEl.onclick=e=>e.stopPropagation();
+    ciEl.onblur=()=>commitCatRename(S.editCat);
+    ciEl.onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();commitCatRename(S.editCat)}
+      else if(e.key==="Escape"){e.preventDefault();S.editCat=null;render()}}}
+  $$("[data-tedit]").forEach(el=>el.onclick=()=>{S.editTask=el.dataset.tedit;render();
+    const inp=document.querySelector("[data-tedit-input]");if(inp){inp.focus();inp.select()}});
+  const tiEl=$("[data-tedit-input]");
+  if(tiEl){tiEl.onclick=e=>e.stopPropagation();
+    tiEl.onblur=()=>commitTaskEdit(S.editTask);
+    tiEl.onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();commitTaskEdit(S.editTask)}
+      else if(e.key==="Escape"){e.preventDefault();S.editTask=null;render()}}}
+  $$("[data-tagcycle]").forEach(el=>el.onclick=e=>{e.stopPropagation();
+    const t=S.tasks.find(x=>x.id===el.dataset.tagcycle);
+    if(t){t.tag=TAGS[(TAGS.indexOf(t.tag)+1)%TAGS.length];saveTasks();render()}});
   $$("[data-tg]").forEach(el=>{const go=()=>{const t=S.tasks.find(x=>x.id===el.dataset.tg);
     if(t){t.done=!t.done;saveTasks();render();if(t.done)toast("Completed · "+t.text)}};
     el.onclick=go;el.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go()}}});
