@@ -71,11 +71,19 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 
 .body{display:flex;gap:var(--gap);padding:var(--pad);height:calc(100vh - var(--top));align-items:stretch}
 
-/* ── control panel — sits UNDER the calendar, laid out as columns ── */
-.side{flex-shrink:0;position:relative;display:flex;gap:16px;align-items:flex-start;padding:11px 13px;
+/* ── control panel — sits UNDER the calendar, click-to-expand, closed by default ── */
+.side{flex-shrink:0;position:relative;display:flex;flex-direction:column;
   border:1px solid var(--edge);
   background:linear-gradient(180deg,rgba(139,92,246,.05),rgba(3,3,7,.45))}
-.side.hide{display:none}
+.panelhd{display:flex;align-items:center;gap:10px;padding:7px 11px}
+.side:not(.closed) .panelhd{border-bottom:1px solid var(--edge)}
+.foldbtn{background:none;border:none;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:7px;
+  font-family:'JetBrains Mono',monospace;font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;padding:0;flex-shrink:0}
+.foldbtn:hover{color:var(--violet-hot)}
+.foldbtn .caret{color:var(--faint);font-size:.55rem;display:inline-block}
+.side.closed .foldbtn .caret{transform:rotate(-90deg)}
+.panelbody{display:flex;gap:16px;align-items:flex-start;padding:11px 13px}
+.side.closed .panelbody{display:none}
 .sidecol{min-width:0;display:flex;flex-direction:column}
 .sidecol.minicol{width:184px;flex-shrink:0}
 .sidecol.calscol{flex:1;min-width:132px}
@@ -150,10 +158,6 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 /* calendar shell */
 .calshell{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;
   border:1px solid var(--edge);background:linear-gradient(180deg,rgba(10,9,18,.82),rgba(3,3,7,.7))}
-.calbar{display:flex;align-items:center;gap:8px;padding:5px 9px;border-bottom:1px solid var(--edge);
-  background:rgba(139,92,246,.05);flex-shrink:0;font-family:'JetBrains Mono',monospace;font-size:.52rem;
-  color:var(--faint);letter-spacing:.2em;text-transform:uppercase}
-.calbar .ln{flex:1;height:1px;background:linear-gradient(90deg,var(--edge),transparent)}
 .wkhead{display:grid;border-bottom:1px solid var(--edge);flex-shrink:0;background:rgba(139,92,246,.04)}
 .wkhead .gut{border-right:1px solid var(--edge)}
 .dh{text-align:center;padding:4px 2px;border-right:1px solid rgba(30,23,51,.7)}
@@ -301,7 +305,8 @@ button,input,select,textarea{font-family:inherit;color:inherit}
   .rail{flex:none;min-height:360px}
 }
 @media(max-width:760px){
-  .side{flex-wrap:wrap}
+  .panelhd{flex-wrap:wrap}
+  .panelbody{flex-wrap:wrap}
   .sidecol.calscol,.sidecol.syscol{flex:1 1 100%;width:auto}
 }
 </style>
@@ -335,7 +340,7 @@ const SEED_TASKS=[
 
 let S={view:"week",cursor:new Date(),mini:new Date(),cals:[],events:[],upcoming:[],
   vis:{},colors:{},collapsed:{},interval:5,cats:SEED_CATS.slice(),tasks:SEED_TASKS.slice(),
-  status:"idle",error:null,modal:null,saving:false,signedIn:false,sideHide:false,railHide:false};
+  status:"idle",error:null,modal:null,saving:false,signedIn:false,sideHide:true,railHide:false};
 
 function savePrefs(){localStorage.setItem(LS.prefs,JSON.stringify({vis:S.vis,colors:S.colors,view:S.view,
   interval:S.interval,collapsed:S.collapsed,cats:S.cats,sideHide:S.sideHide,railHide:S.railHide}))}
@@ -344,7 +349,7 @@ function loadLocal(){
   try{const p=JSON.parse(localStorage.getItem(LS.prefs)||"{}");
     Object.assign(S,{vis:p.vis||{},colors:p.colors||{},collapsed:p.collapsed||{}});
     if(p.view)S.view=p.view;if(p.interval!=null)S.interval=p.interval;if(p.cats)S.cats=p.cats;
-    if(p.sideHide)S.sideHide=p.sideHide;if(p.railHide)S.railHide=p.railHide}catch(e){}
+    if(p.sideHide!=null)S.sideHide=p.sideHide;if(p.railHide)S.railHide=p.railHide}catch(e){}
   try{const t=localStorage.getItem(LS.tasks);if(t)S.tasks=JSON.parse(t)}catch(e){}
 }
 const pad=n=>String(n).padStart(2,"0");
@@ -490,7 +495,6 @@ function render(){
   const r=document.getElementById("root");
   r.innerHTML=`
   <div class="top">
-    <button class="arrow" id="burger">☰</button>
     <div class="brandwrap"><div class="logo">Bhuvan's <b>Dashboard</b></div><span class="vtag">v2.0</span></div>
     <button class="tbtn" id="today">Today</button>
     <div><button class="arrow" id="prev">‹</button><button class="arrow" id="next">›</button></div>
@@ -498,9 +502,6 @@ function render(){
     <div class="grow"></div>
     <div id="stat" class="stat"><span class="dot"></span>idle</div>
     <button class="tbtn" id="rf">Refresh</button>
-    <div class="seg">${["day","week","month"].map(v=>
-      `<button data-v="${v}" class="${S.view===v?"on":""}">${v}</button>`).join("")}</div>
-    <button class="tbtn" id="railtog">${S.railHide?"Tasks ▸":"Tasks ◂"}</button>
     ${S.signedIn?`<button class="tbtn" id="out">Sign out</button>`:""}
   </div>
   <div class="body">
@@ -508,24 +509,31 @@ function render(){
       ${S.error?`<div class="banner">${esc(S.error)}<button id="dis">✕</button></div>`:""}
       ${S.signedIn?upcomingHTML():""}
       <div class="calshell hud"><span class="br1"></span><span class="br2"></span>
-        <div class="calbar"><span>◈ Calendar</span><span class="ln"></span>
-          <span>${S.view.toUpperCase()}</span><span>·</span><span>${S.events.length} events</span></div>
         ${S.signedIn?(S.view==="month"?monthView():weekView()):gate()}
       </div>
-      <div class="side hud ${S.sideHide?"hide":""}"><span class="br1"></span><span class="br2"></span>
-        <div class="sidecol minicol">
-          <button class="create" id="create">+ Create Event</button>
-          ${miniMonth()}
+      <div class="side hud ${S.sideHide?"closed":""}"><span class="br1"></span><span class="br2"></span>
+        <div class="panelhd">
+          <button class="foldbtn" data-foldpanel><span class="caret">▾</span>Controls</button>
+          <div class="seg">${["day","week","month"].map(v=>
+            `<button data-v="${v}" class="${S.view===v?"on":""}">${v}</button>`).join("")}</div>
+          <div class="grow"></div>
+          <button class="tbtn" id="railtog">${S.railHide?"Tasks ▸":"Tasks ◂"}</button>
         </div>
-        <div class="sidecol calscol">
-          <div class="sechd">Calendars</div>
-          <div class="callist">${S.cals.length?S.cals.map(calRow).join(""):'<div class="none">—</div>'}</div>
-        </div>
-        <div class="sidecol syscol">
-          <div class="sechd">Auto-refresh</div>
-          <select id="ivl">${[[0,"Off"],[1,"1 min"],[5,"5 min"],[15,"15 min"]].map(([v,l])=>
-            `<option value="${v}" ${S.interval===v?"selected":""}>${l}</option>`).join("")}</select>
-          ${readout()}
+        <div class="panelbody">
+          <div class="sidecol minicol">
+            <button class="create" id="create">+ Create Event</button>
+            ${miniMonth()}
+          </div>
+          <div class="sidecol calscol">
+            <div class="sechd">Calendars</div>
+            <div class="callist">${S.cals.length?S.cals.map(calRow).join(""):'<div class="none">—</div>'}</div>
+          </div>
+          <div class="sidecol syscol">
+            <div class="sechd">Auto-refresh</div>
+            <select id="ivl">${[[0,"Off"],[1,"1 min"],[5,"5 min"],[15,"15 min"]].map(([v,l])=>
+              `<option value="${v}" ${S.interval===v?"selected":""}>${l}</option>`).join("")}</select>
+            ${readout()}
+          </div>
         </div>
       </div>
     </div>
@@ -697,7 +705,7 @@ function wire(){
     else if(S.view==="week")S.cursor=addDays(S.cursor,7*n);
     else S.cursor=new Date(S.cursor.getFullYear(),S.cursor.getMonth()+n,1);
     S.mini=new Date(S.cursor);render();refresh()};
-  $("#burger").onclick=()=>{S.sideHide=!S.sideHide;savePrefs();render()};
+  $("[data-foldpanel]").onclick=()=>{S.sideHide=!S.sideHide;savePrefs();render()};
   $("#railtog").onclick=()=>{S.railHide=!S.railHide;savePrefs();render()};
   $("#today").onclick=()=>{S.cursor=new Date();S.mini=new Date();render();refresh()};
   $("#prev").onclick=()=>step(-1);$("#next").onclick=()=>step(1);
