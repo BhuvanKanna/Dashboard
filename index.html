@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Bhuvan's Dashboard</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#000000">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -702,6 +706,7 @@ function upcomingHTML(){
   let h=`<div class="upnav"><h2>◤ Upcoming</h2><div class="ln"></div><span class="ct">${all.length} items · next 10 days</span>
     ${weatherHTML()}
     <div id="stat" class="stat"><span class="dot"></span>idle</div>
+    <button class="tbtn" id="fs">${document.fullscreenElement?"Exit ⛶":"Fullscreen ⛶"}</button>
     <button class="tbtn" id="rf">Refresh</button>
     <button class="tbtn" id="out">Sign out</button></div>`;
   if(!all.length)return h+`<div class="upstrip"><div class="upempty">${S.search?"NO MATCHES":"NOTHING URGENT — ALL CLEAR"}</div></div>`;
@@ -871,6 +876,9 @@ function wire(){
   $("#prev").onclick=()=>step(-1);$("#next").onclick=()=>step(1);
   const rf=$("#rf");if(rf)rf.onclick=()=>refresh();
   const o=$("#out");if(o)o.onclick=signOut;
+  const fs=$("#fs");if(fs)fs.onclick=()=>{
+    if(document.fullscreenElement)document.exitFullscreen();
+    else document.documentElement.requestFullscreen().catch(()=>{})};
   const cn=$("#connect");if(cn)cn.onclick=()=>connect(true);
   const ds=$("#dis");if(ds)ds.onclick=()=>{S.error=null;render()};
   $$("[data-v]").forEach(b=>b.onclick=()=>{S.view=b.dataset.v;savePrefs();render();refresh()});
@@ -1045,6 +1053,7 @@ setInterval(()=>{if(!S.signedIn||S.view==="month"||S.modal)return;
   if(nl)nl.style.top=((mins(new Date())/60-DAY_START)/SPAN_H*100).toFixed(3)+"%"},30000);
 loadLocal();render();initAuth();
 loadWeather();setInterval(loadWeather,30*60000);
+document.addEventListener("fullscreenchange",render);
 </script>
 </body>
 </html>
