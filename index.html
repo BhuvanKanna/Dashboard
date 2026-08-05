@@ -47,6 +47,9 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .arrow:hover{color:var(--violet-hot);border-color:var(--edge)}
 .period{font-family:'Chakra Petch',sans-serif;font-size:.95rem;font-weight:600;letter-spacing:.04em;white-space:nowrap}
 .grow{flex:1}
+.search{background:rgba(0,0,0,.5);border:1px solid var(--edge);color:var(--text);padding:5px 8px;
+  font-size:.68rem;outline:none;width:130px}
+.search:focus{border-color:var(--violet)}
 .seg{display:flex;border:1px solid var(--edge)}
 .seg button{background:transparent;border:none;color:var(--muted);padding:5px 11px;font-size:.7rem;cursor:pointer;
   font-family:'JetBrains Mono',monospace;letter-spacing:.08em;text-transform:uppercase}
@@ -130,6 +133,7 @@ button,input,select,textarea{font-family:inherit;color:inherit}
   color:var(--alert-hot);margin:0;white-space:nowrap}
 .upnav .ln{flex:1;height:1px;background:linear-gradient(90deg,rgba(255,45,85,.45),transparent)}
 .upnav .ct{font-family:'JetBrains Mono',monospace;font-size:.53rem;color:var(--faint)}
+.wx{font-family:'JetBrains Mono',monospace;font-size:.62rem;color:var(--muted);white-space:nowrap}
 .upstrip{display:flex;gap:8px;overflow-x:auto;padding-bottom:3px;flex-shrink:0;min-height:60px}
 .upcard{flex:0 0 auto;min-width:172px;max-width:230px;border:1px solid rgba(255,45,85,.34);
   border-left:2px solid var(--alert);background:linear-gradient(135deg,rgba(255,45,85,.11),rgba(10,9,18,.75));
@@ -180,6 +184,8 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .ev:hover{filter:brightness(1.35);z-index:7}
 .ev b{display:block;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
 .ev em{font-style:normal;font-family:'JetBrains Mono',monospace;font-size:.5rem;opacity:.8}
+.ev.dim,.chip.dim{opacity:.22}
+.ev .rsz{position:absolute;left:0;right:0;bottom:0;height:6px;cursor:ns-resize}
 .chip{padding:1px 4px;font-size:.59rem;cursor:pointer;border-left:2px solid;white-space:nowrap;
   overflow:hidden;text-overflow:ellipsis}
 .chip:hover{filter:brightness(1.35)}
@@ -217,6 +223,7 @@ button,input,select,textarea{font-family:inherit;color:inherit}
   padding:0 2px;flex-shrink:0}
 .mod header:hover .catedit{opacity:1}
 .catedit:hover{color:var(--violet-hot)}
+.catswatch{width:9px;height:9px;flex-shrink:0;border:1px solid rgba(255,255,255,.25);cursor:pointer;padding:0}
 .catinput{flex:1;min-width:0;background:rgba(0,0,0,.6);border:1px solid var(--violet);color:var(--text);
   font-family:'Chakra Petch',sans-serif;font-size:.61rem;font-weight:600;letter-spacing:.09em;
   text-transform:uppercase;padding:1px 4px;outline:none}
@@ -232,8 +239,16 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .txt{flex:1;font-size:.69rem;line-height:1.2;min-width:0;word-break:break-word;cursor:text}
 .txt.on{color:var(--faint);text-decoration:line-through;text-decoration-color:var(--violet)}
 .sub{font-family:'JetBrains Mono',monospace;font-size:.5rem;color:var(--muted);margin-top:1px}
+.sub[data-dueedit]{cursor:pointer}
+.sub[data-dueedit]:hover{color:var(--violet-hot);text-decoration:underline}
+.duebtn{background:none;border:none;color:var(--faint);font-family:'JetBrains Mono',monospace;font-size:.48rem;
+  cursor:pointer;padding:1px 0;margin-top:1px;opacity:0}
+.txt:hover .duebtn{opacity:1}
+.duebtn:hover{color:var(--violet-hot)}
 .txtinput{width:100%;background:rgba(0,0,0,.6);border:1px solid var(--violet);color:var(--text);
   font-family:inherit;font-size:.69rem;line-height:1.2;padding:1px 3px;outline:none}
+.dueinput{width:auto;max-width:118px;background:rgba(0,0,0,.6);border:1px solid var(--violet);color:var(--text);
+  font-family:'JetBrains Mono',monospace;font-size:.5rem;padding:1px 3px;outline:none;margin-top:2px}
 .tag{font-family:'JetBrains Mono',monospace;font-size:.44rem;letter-spacing:.1em;text-transform:uppercase;
   padding:1px 3px;border:1px solid;flex-shrink:0;margin-top:2px;cursor:pointer}
 .tag:hover{filter:brightness(1.3)}
@@ -242,9 +257,11 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .x{opacity:0;background:none;border:none;color:var(--faint);cursor:pointer;font-size:.58rem;padding:0 1px}
 .mod li:hover .x{opacity:1}.x:hover{color:var(--alert)}
 .hollow{padding:6px 9px;font-size:.59rem;color:var(--faint);font-style:italic}
-.addrow{display:flex;gap:3px;padding:4px 6px;border-top:1px solid rgba(30,23,51,.7)}
-.addrow input{flex:1;min-width:0;background:rgba(0,0,0,.5);border:1px solid var(--edge);color:var(--text);
+.addrow{display:flex;gap:3px;padding:4px 6px;border-top:1px solid rgba(30,23,51,.7);flex-wrap:wrap}
+.addrow input[data-in]{flex:1;min-width:60px;background:rgba(0,0,0,.5);border:1px solid var(--edge);color:var(--text);
   padding:3px 5px;font-size:.62rem;outline:none}
+.addrow input[type=date]{flex:0 0 auto;width:100px;background:rgba(0,0,0,.5);border:1px solid var(--edge);
+  color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:.5rem;padding:3px 3px;outline:none}
 .addrow input:focus{border-color:var(--violet)}
 .addrow select{background:rgba(0,0,0,.5);border:1px solid var(--edge);color:var(--muted);
   font-family:'JetBrains Mono',monospace;font-size:.46rem;padding:3px 0;outline:none;cursor:pointer;max-width:44px}
@@ -319,13 +336,14 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
 const CLIENT_ID = "926235201112-tpe1a7sr8lp9357the1h21alnqme4mg4.apps.googleusercontent.com";
-const SCOPE="https://www.googleapis.com/auth/calendar";
+const SCOPE="https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/tasks";
 const BASE="https://www.googleapis.com/calendar/v3";
+const TASKS_BASE="https://tasks.googleapis.com/tasks/v1";
 const TZ=Intl.DateTimeFormat().resolvedOptions().timeZone||"America/Chicago";
 const PALETTE=["#8B5CF6","#22D3EE","#FF2D55","#33D69F","#F6BF26","#F4511E","#E67C73","#3F51B5","#8E24AA","#0B8043","#616161"];
 const DOW=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const MON=["January","February","March","April","May","June","July","August","September","October","November","December"];
-const LS={prefs:"bd.prefs",tasks:"bd.tasks"};
+const LS={prefs:"bd.prefs",tasks:"bd.tasks",listMap:"bd.listMap",tasksSynced:"bd.tasksSynced"};
 // Visible day window: 6 AM through 12:30 AM. The half hour past midnight exists so a
 // 11:59 PM item renders at full height instead of being clipped by the grid bottom.
 const DAY_START=6,DAY_END=24.5,SPAN_H=DAY_END-DAY_START;
@@ -342,20 +360,22 @@ const SEED_TASKS=[
  {id:"s4",cat:"ACC",text:"Final Exam",tag:"Deadline",due:"2026-08-07T23:59",done:false}];
 
 let S={view:"week",cursor:new Date(),mini:new Date(),cals:[],events:[],upcoming:[],
-  vis:{},colors:{},collapsed:{},interval:5,cats:SEED_CATS.slice(),tasks:SEED_TASKS.slice(),
+  vis:{},colors:{},catColors:{},collapsed:{},interval:5,cats:SEED_CATS.slice(),tasks:SEED_TASKS.slice(),
   status:"idle",error:null,modal:null,saving:false,signedIn:false,sideHide:true,railHide:false,
-  editTask:null,editCat:null};
+  editTask:null,editCat:null,editDue:null,search:"",_searchFocused:false,_searchPos:0,weather:null};
 
-function savePrefs(){localStorage.setItem(LS.prefs,JSON.stringify({vis:S.vis,colors:S.colors,view:S.view,
-  interval:S.interval,collapsed:S.collapsed,cats:S.cats,sideHide:S.sideHide,railHide:S.railHide}))}
+function savePrefs(){localStorage.setItem(LS.prefs,JSON.stringify({vis:S.vis,colors:S.colors,catColors:S.catColors,
+  view:S.view,interval:S.interval,collapsed:S.collapsed,cats:S.cats,sideHide:S.sideHide,railHide:S.railHide}))}
 function saveTasks(){localStorage.setItem(LS.tasks,JSON.stringify(S.tasks))}
 function loadLocal(){
   try{const p=JSON.parse(localStorage.getItem(LS.prefs)||"{}");
-    Object.assign(S,{vis:p.vis||{},colors:p.colors||{},collapsed:p.collapsed||{}});
+    Object.assign(S,{vis:p.vis||{},colors:p.colors||{},catColors:p.catColors||{},collapsed:p.collapsed||{}});
     if(p.view)S.view=p.view;if(p.interval!=null)S.interval=p.interval;if(p.cats)S.cats=p.cats;
     if(p.sideHide!=null)S.sideHide=p.sideHide;if(p.railHide)S.railHide=p.railHide}catch(e){}
   try{const t=localStorage.getItem(LS.tasks);if(t)S.tasks=JSON.parse(t)}catch(e){}
 }
+const catCol=cat=>S.catColors[cat]||"#8B5CF6";
+const matchesSearch=t=>!S.search||t.toLowerCase().includes(S.search.toLowerCase());
 const pad=n=>String(n).padStart(2,"0");
 const iso=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
 const sameDay=(a,b)=>iso(a)===iso(b);
@@ -417,6 +437,13 @@ async function api(path,opts={}){
   if(r.status===401){token=null;await ensureToken();return api(path,opts)}
   if(!r.ok){let m=r.status+"";try{m=(await r.json()).error.message}catch(e){}throw new Error(m)}
   return r.status===204?null:r.json()}
+async function tapi(path,opts={}){
+  await ensureToken();
+  const r=await fetch(TASKS_BASE+path,{...opts,headers:{Authorization:"Bearer "+token,
+    "Content-Type":"application/json",...(opts.headers||{})}});
+  if(r.status===401){token=null;await ensureToken();return tapi(path,opts)}
+  if(!r.ok){let m=r.status+"";try{m=(await r.json()).error.message}catch(e){}throw new Error(m)}
+  return r.status===204?null:r.json()}
 function setStat(s,msg){S.status=s;S.error=msg||null;const el=document.getElementById("stat");
   if(el){el.className="stat "+s;el.innerHTML=`<span class="dot"></span>${
     s==="busy"?"sync":s==="err"?"error":s==="ok"?"linked":"idle"}`}}
@@ -424,6 +451,51 @@ let toastT=null;
 function toast(m,err){const el=document.getElementById("toast");if(!el)return;
   el.textContent=m;el.className="show"+(err?" err":"");clearTimeout(toastT);
   toastT=setTimeout(()=>{el.className=""},2600)}
+
+// ── Google Tasks sync ──
+// Category name -> Google Tasks list id. Every write-through call below is best-effort: if the
+// Tasks API isn't enabled yet or the scope wasn't granted, it fails silently and the dashboard
+// keeps working exactly as it did with localStorage-only tasks. Nothing here is allowed to lose
+// or overwrite local task data on failure.
+let listMap={};
+function loadListMap(){try{listMap=JSON.parse(localStorage.getItem(LS.listMap)||"{}")}catch(e){listMap={}}}
+function saveListMap(){localStorage.setItem(LS.listMap,JSON.stringify(listMap))}
+async function ensureList(cat){
+  if(listMap[cat])return listMap[cat];
+  const d=await tapi("/users/@me/lists",{method:"POST",body:JSON.stringify({title:cat})});
+  listMap[cat]=d.id;saveListMap();return d.id}
+function parseTag(notes){const m=/^\[(ASAP|Deadline|General)\]/.exec(notes||"");return m?m[1]:"General"}
+async function syncGoogleTasks(){
+  loadListMap();
+  try{await tapi("/users/@me/lists")}catch(e){return} // Tasks API/scope not available — stay local-only
+  try{for(const cat of S.cats)if(!listMap[cat])await ensureList(cat)}
+  catch(e){console.warn("Tasks list setup failed:",e.message)}
+  if(!localStorage.getItem(LS.tasksSynced)){
+    try{
+      for(const t of S.tasks){
+        if(t.id.length<20){ // still a local uid(), not yet pushed to Google
+          const listId=listMap[t.cat]||await ensureList(t.cat);
+          const body={title:t.text,notes:"["+t.tag+"]",status:t.done?"completed":"needsAction"};
+          if(t.due)body.due=new Date(t.due.slice(0,10)+"T00:00:00Z").toISOString();
+          const d=await tapi(`/lists/${encodeURIComponent(listId)}/tasks`,{method:"POST",body:JSON.stringify(body)});
+          t.id=d.id}}
+      localStorage.setItem(LS.tasksSynced,"1");saveTasks()}
+    catch(e){console.warn("Task migration incomplete, will retry next sync:",e.message);return}}
+  await pullTasks()}
+async function pullTasks(){
+  try{
+    const pulled=[];
+    for(const cat of S.cats){
+      const listId=listMap[cat];if(!listId)continue;
+      const d=await tapi(`/lists/${encodeURIComponent(listId)}/tasks?showCompleted=true&showHidden=true&maxResults=100`);
+      (d.items||[]).forEach(it=>pulled.push({id:it.id,cat,text:it.title||"(untitled)",tag:parseTag(it.notes),
+        due:it.due?it.due.slice(0,10)+"T23:59":null,done:it.status==="completed"}))}
+    const pulledIds=new Set(pulled.map(t=>t.id));
+    // Never silently drop a task Google hasn't confirmed yet — keep anything added in the last
+    // 2 minutes (its write-through push may still be in flight) or anything with no list yet.
+    const keep=S.tasks.filter(t=>!pulledIds.has(t.id)&&(!listMap[t.cat]||Date.now()-(t._addedAt||0)<120000));
+    S.tasks=[...pulled,...keep];saveTasks();render()}
+  catch(e){console.warn("Tasks pull failed, keeping local copy:",e.message)}}
 
 async function loadCals(){
   const d=await api("/users/me/calendarList?minAccessRole=reader");
@@ -464,17 +536,37 @@ async function refresh(silent){
   if(!silent)setStat("busy");
   try{await Promise.all([loadEvents(),loadUpcoming()]);setStat("ok")}
   catch(e){setStat("err",e.message)}
-  render()}
+  render();
+  syncGoogleTasks()} // best-effort, runs independently of calendar refresh/errors
 async function boot(){
   loadLocal();render();setStat("busy");
   try{await loadCals();render();await Promise.all([loadEvents(),loadUpcoming()]);setStat("ok")}
   catch(e){setStat("err",e.message)}
-  render();startPoll()}
+  render();startPoll();
+  syncGoogleTasks()}
 let poll=null;
 function startPoll(){clearInterval(poll);if(!S.interval)return;
   poll=setInterval(()=>{if(document.hidden||S.modal)return;refresh(true)},S.interval*60000)}
 document.addEventListener("visibilitychange",()=>{if(!document.hidden&&S.signedIn)refresh(true)});
 window.addEventListener("focus",()=>{if(S.signedIn)refresh(true)});
+
+// Open-Meteo: free, no API key, no signup — fits the "free only" constraint.
+// Falls back to Austin, TX (UT Austin) if geolocation is denied or unavailable.
+const WX_ICON={0:"☀",1:"🌤",2:"⛅",3:"☁",45:"🌫",48:"🌫",51:"🌦",53:"🌦",55:"🌦",56:"🌧",57:"🌧",
+  61:"🌧",63:"🌧",65:"🌧",66:"🌧",67:"🌧",71:"🌨",73:"🌨",75:"🌨",77:"🌨",80:"🌦",81:"🌦",82:"⛈",
+  85:"🌨",86:"🌨",95:"⛈",96:"⛈",99:"⛈"};
+function loadWeather(){
+  const go=(lat,lon)=>{
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&temperature_unit=fahrenheit&timezone=auto`)
+      .then(r=>r.ok?r.json():Promise.reject())
+      .then(d=>{S.weather={temp:Math.round(d.current.temperature_2m),code:d.current.weather_code};render()})
+      .catch(()=>{})};
+  if(navigator.geolocation)navigator.geolocation.getCurrentPosition(
+    p=>go(p.coords.latitude,p.coords.longitude),()=>go(30.2672,-97.7431),{timeout:4000});
+  else go(30.2672,-97.7431)}
+function weatherHTML(){
+  if(!S.weather)return "";
+  return `<span class="wx" title="Current weather">${WX_ICON[S.weather.code]||"—"} ${S.weather.temp}°F</span>`}
 
 const esc=s=>{const d=document.createElement("div");d.textContent=s==null?"":s;return d.innerHTML};
 const col=id=>S.colors[id]||"#8B5CF6";
@@ -498,8 +590,14 @@ function commitTaskEdit(id){
   const inp=document.querySelector("[data-tedit-input]");
   if(!inp){S.editTask=null;return}
   const val=inp.value.trim(),t=S.tasks.find(x=>x.id===id);
-  if(t&&val)t.text=val;
-  S.editTask=null;saveTasks();render()}
+  if(t&&val){
+    const old=t.text;t.text=val;S.editTask=null;saveTasks();render();
+    const listId=listMap[t.cat];
+    if(listId)tapi(`/lists/${encodeURIComponent(listId)}/tasks/${encodeURIComponent(t.id)}`,
+      {method:"PATCH",body:JSON.stringify({title:val})})
+      .catch(e=>{t.text=old;saveTasks();render();toast("Sync failed: "+e.message,true)});
+    return}
+  S.editTask=null;render()}
 function commitCatRename(oldCat){
   const inp=document.querySelector("[data-catedit-input]");
   if(!inp){S.editCat=null;return}
@@ -509,7 +607,24 @@ function commitCatRename(oldCat){
   const idx=S.cats.indexOf(oldCat);if(idx>-1)S.cats[idx]=val;
   S.tasks.forEach(t=>{if(t.cat===oldCat)t.cat=val});
   if(oldCat in S.collapsed){S.collapsed[val]=S.collapsed[oldCat];delete S.collapsed[oldCat]}
+  if(oldCat in S.catColors){S.catColors[val]=S.catColors[oldCat];delete S.catColors[oldCat]}
+  const listId=listMap[oldCat];
+  if(listId){delete listMap[oldCat];listMap[val]=listId;saveListMap();
+    tapi(`/users/@me/lists/${encodeURIComponent(listId)}`,{method:"PATCH",body:JSON.stringify({title:val})}).catch(()=>{})}
   S.editCat=null;savePrefs();saveTasks();render();toast("Renamed to "+val)}
+function commitDueEdit(id){
+  const inp=document.querySelector("[data-dueedit-input]");
+  if(!inp){S.editDue=null;return}
+  const t=S.tasks.find(x=>x.id===id);
+  if(t){
+    const old=t.due;t.due=inp.value?inp.value+"T23:59":null;S.editDue=null;saveTasks();render();
+    const listId=listMap[t.cat];
+    if(listId){
+      const body={due:t.due?new Date(t.due.slice(0,10)+"T00:00:00Z").toISOString():null};
+      tapi(`/lists/${encodeURIComponent(listId)}/tasks/${encodeURIComponent(t.id)}`,{method:"PATCH",body:JSON.stringify(body)})
+        .catch(e=>{t.due=old;saveTasks();render();toast("Sync failed: "+e.message,true)})}
+    return}
+  S.editDue=null;render()}
 
 function render(){
   const r=document.getElementById("root");
@@ -530,6 +645,7 @@ function render(){
           <div class="period">${label()}</div>
           <div class="seg">${["day","week","month"].map(v=>
             `<button data-v="${v}" class="${S.view===v?"on":""}">${v}</button>`).join("")}</div>
+          <input class="search" id="search" placeholder="Search…" value="${esc(S.search)}">
           <div class="grow"></div>
           <button class="tbtn" id="railtog">${S.railHide?"Tasks ▸":"Tasks ◂"}</button>
         </div>
@@ -561,6 +677,8 @@ function render(){
   ${S.modal?modalHTML():""}`;
   setStat(S.status,S.error);wire();
   if(S.signedIn&&S.view!=="month"){const sc=document.querySelector(".scroller");if(sc)sc.scrollTop=0}
+  if(S._searchFocused){const se=document.getElementById("search");
+    if(se){se.focus();try{se.setSelectionRange(S._searchPos,S._searchPos)}catch(e){}}}
 }
 function readout(){
   const u=urgentTasks().length,open=S.tasks.filter(t=>!t.done).length;
@@ -580,11 +698,13 @@ function upcomingHTML(){
     sub:t.cat+" · "+t.tag,id:t.id}));
   let all=[...evs,...tks].sort((a,b)=>{
     if(a.when&&b.when)return a.when-b.when;if(a.when)return -1;if(b.when)return 1;return 0}).slice(0,12);
+  if(S.search)all=all.filter(x=>matchesSearch(x.title)||matchesSearch(x.sub));
   let h=`<div class="upnav"><h2>◤ Upcoming</h2><div class="ln"></div><span class="ct">${all.length} items · next 10 days</span>
+    ${weatherHTML()}
     <div id="stat" class="stat"><span class="dot"></span>idle</div>
     <button class="tbtn" id="rf">Refresh</button>
     <button class="tbtn" id="out">Sign out</button></div>`;
-  if(!all.length)return h+`<div class="upstrip"><div class="upempty">NOTHING URGENT — ALL CLEAR</div></div>`;
+  if(!all.length)return h+`<div class="upstrip"><div class="upempty">${S.search?"NO MATCHES":"NOTHING URGENT — ALL CLEAR"}</div></div>`;
   h+=`<div class="upstrip">`;
   all.forEach(x=>{
     h+=`<div class="upcard ${x.kind==="task"?"task":""} hud" ${x.kind==="event"?`data-ev="${esc(x.id)}|${esc(x.calId)}"`:""}>
@@ -615,7 +735,7 @@ function weekView(){
   days.forEach(d=>h+=`<div class="dh ${sameDay(d,td)?"today":""}"><div class="dn">${DOW[d.getDay()]}</div><div class="dd">${d.getDate()}</div></div>`);
   h+=`</div><div class="allday" style="${gc}"><div class="gut">all-day</div>`;
   days.forEach(d=>{h+=`<div class="adc">${onDay(d).filter(e=>e.allDay).map(e=>
-    `<div class="chip" data-ev="${esc(e.id)}|${esc(e.calId)}" style="background:${tint(col(e.calId),.2)};border-left-color:${col(e.calId)}">${esc(e.title)}</div>`).join("")}</div>`});
+    `<div class="chip ${S.search&&!matchesSearch(e.title)?"dim":""}" data-ev="${esc(e.id)}|${esc(e.calId)}" style="background:${tint(col(e.calId),.2)};border-left-color:${col(e.calId)}">${esc(e.title)}</div>`).join("")}</div>`});
   h+=`</div><div class="scroller"><div class="wkgrid" style="${gc}"><div class="gutcol">`;
   for(let i=DAY_START;i<24;i++)h+=`<div>${hourLabel(i)}</div>`;
   h+=`<div class="half">${hourLabel(24)}</div></div>`;
@@ -632,11 +752,11 @@ function weekView(){
       if(top<0){hgt+=top;top=0}
       top=Math.min(top,100-PCT_MIN);
       hgt=Math.max(PCT_MIN,Math.min(hgt,100-top));
-      const w=100/p.n,c2=col(e.calId);
-      h+=`<div class="ev" data-ev="${esc(e.id)}|${esc(e.calId)}"
+      const w=100/p.n,c2=col(e.calId),dim=S.search&&!matchesSearch(e.title)?"dim":"";
+      h+=`<div class="ev ${dim}" data-ev="${esc(e.id)}|${esc(e.calId)}" data-drag="${esc(e.id)}|${esc(e.calId)}"
         style="top:${top.toFixed(3)}%;height:${hgt.toFixed(3)}%;left:calc(${p.i*w}% + 1px);width:calc(${w}% - 2px);
         background:${tint(c2,.22)};border-left-color:${c2};color:${c2}">
-        <b>${esc(e.title)}</b><em>${fmtT(e.start)}</em></div>`});
+        <b>${esc(e.title)}</b><em>${fmtT(e.start)}</em><span class="rsz" data-resize="${esc(e.id)}|${esc(e.calId)}"></span></div>`});
     if(isT){const nh=mins(new Date())/60;
       if(nh>=DAY_START&&nh<=DAY_END)h+=`<div class="nowline" style="top:${((nh-DAY_START)/SPAN_H*100).toFixed(3)}%"></div>`}
     h+="</div>"});
@@ -647,29 +767,39 @@ function monthView(){
   for(let i=0;i<42;i++){const d=addDays(a,i),list=onDay(d);
     h+=`<div class="mcell ${d.getMonth()!==m?"out":""} ${sameDay(d,td)?"today":""}" data-new="${iso(d)}">
       <div class="dnum">${d.getDate()}</div>
-      ${list.slice(0,3).map(e=>`<div class="chip" data-ev="${esc(e.id)}|${esc(e.calId)}"
+      ${list.slice(0,3).map(e=>`<div class="chip ${S.search&&!matchesSearch(e.title)?"dim":""}" data-ev="${esc(e.id)}|${esc(e.calId)}"
         style="background:${tint(col(e.calId),.18)};border-left-color:${col(e.calId)}">${
         e.allDay?"":`<span class="mono" style="color:${col(e.calId)};font-size:.48rem">${fmtT(e.start)} </span>`}${esc(e.title)}</div>`).join("")}
       ${list.length>3?`<div class="more">+${list.length-3}</div>`:""}</div>`}
   return h+"</div></div>"}
 function modHTML(cat){
-  const list=S.tasks.filter(t=>t.cat===cat),openN=list.filter(t=>!t.done).length;
-  const hot=list.some(t=>!t.done&&(t.tag==="ASAP"||t.tag==="Deadline"));
-  const editingCat=S.editCat===cat;
-  let h=`<div class="mod ${hot?"hot":""} ${S.collapsed[cat]?"closed":""}">
-    <header data-fold="${esc(cat)}"><span class="caret">▾</span>${editingCat
+  const all=S.tasks.filter(t=>t.cat===cat);
+  const list=S.search?all.filter(t=>matchesSearch(t.text)||matchesSearch(cat)):all;
+  if(S.search&&!list.length)return "";
+  const openN=all.filter(t=>!t.done).length;
+  const hot=all.some(t=>!t.done&&(t.tag==="ASAP"||t.tag==="Deadline"));
+  const editingCat=S.editCat===cat,cc=catCol(cat);
+  let h=`<div class="mod ${hot?"hot":""} ${S.collapsed[cat]?"closed":""}" style="border-left:3px solid ${cc}">
+    <header data-fold="${esc(cat)}"><span class="caret">▾</span>
+      <button class="catswatch" data-catcolor="${esc(cat)}" title="Category color" style="background:${cc}"></button>
+      ${editingCat
       ?`<input class="catinput" data-catedit-input value="${esc(cat)}">`
       :`<h3>${esc(cat)}</h3><button class="catedit" data-catedit="${esc(cat)}" title="Rename category">✎</button>`}
-      <span class="ct">${openN}/${list.length}</span></header>`;
+      <span class="ct">${openN}/${all.length}</span></header>`;
   if(!list.length)h+=`<div class="hollow">Nothing yet.</div>`;
   else{h+="<ul>";list.forEach(t=>{
-    const editingTask=S.editTask===t.id;
+    const editingTask=S.editTask===t.id,editingDue=S.editDue===t.id;
     h+=`<li><div class="box ${t.done?"on":""}" data-tg="${t.id}" role="checkbox" tabindex="0" aria-checked="${t.done}"></div>
       <div class="txt ${t.done?"on":""}" ${editingTask?"":`data-tedit="${t.id}"`}>${editingTask
         ?`<input class="txtinput" data-tedit-input value="${esc(t.text)}">`
-        :esc(t.text)}${t.due?`<div class="sub">${new Date(t.due).toLocaleString(undefined,{weekday:"short",month:"numeric",day:"numeric",hour:"numeric",minute:"2-digit"})}</div>`:""}</div>
+        :esc(t.text)}${editingDue
+        ?`<input type="date" class="dueinput" data-dueedit-input value="${t.due?t.due.slice(0,10):""}">`
+        :t.due
+          ?`<div class="sub" data-dueedit="${t.id}" title="Click to change due date">${new Date(t.due).toLocaleString(undefined,{weekday:"short",month:"numeric",day:"numeric",hour:"numeric",minute:"2-digit"})}</div>`
+          :`<button class="duebtn" data-dueedit="${t.id}">+ due date</button>`}</div>
       <span class="tag ${t.tag}" data-tagcycle="${t.id}" title="Click to change priority">${t.tag}</span><button class="x" data-rm="${t.id}">✕</button></li>`});h+="</ul>"}
   return h+`<div class="addrow"><input data-in="${esc(cat)}" placeholder="Add">
+    <input type="date" data-duein="${esc(cat)}" title="Due date (optional)">
     <select data-sel="${esc(cat)}">${TAGS.map(t=>`<option>${t}</option>`).join("")}</select>
     <button data-add="${esc(cat)}">+</button></div></div>`}
 function modalHTML(){
@@ -678,6 +808,10 @@ function modalHTML(){
     <div class="mhd"><h3>Color</h3><button data-close>✕</button></div>
     <div class="mbd"><div class="swatches">${PALETTE.map(c=>
       `<button data-pick="${c}" class="${col(m.calId)===c?"on":""}" style="background:${c}"></button>`).join("")}</div></div></div></div>`;
+  if(m.type==="catcolor")return `<div class="scrim" data-close><div class="modal" style="max-width:250px">
+    <div class="mhd"><h3>Category color</h3><button data-close>✕</button></div>
+    <div class="mbd"><div class="swatches">${PALETTE.map(c=>
+      `<button data-pickcat="${c}" class="${catCol(m.cat)===c?"on":""}" style="background:${c}"></button>`).join("")}</div></div></div></div>`;
   const f=m.form;
   return `<div class="scrim" data-close><div class="modal hud"><span class="br1"></span><span class="br2"></span>
     <div class="mhd"><h3>${m.type==="edit"?"Edit event":"New event"}</h3><button data-close>✕</button></div>
@@ -725,6 +859,7 @@ async function persist(f){
 
 function wire(){
   const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
+  let dragState=null,justDragged=false;
   const step=n=>{
     if(S.view==="day")S.cursor=addDays(S.cursor,n);
     else if(S.view==="week")S.cursor=addDays(S.cursor,7*n);
@@ -750,16 +885,80 @@ function wire(){
   const cr=$("#create");if(cr)cr.onclick=()=>{S.modal={type:"new",form:newForm(iso(S.cursor))};render()};
   $$("[data-new]").forEach(c=>c.onclick=e=>{if(e.target.closest("[data-ev]"))return;
     S.modal={type:"new",form:newForm(c.dataset.new)};render()});
-  $$("[data-ev]").forEach(el=>el.onclick=e=>{e.stopPropagation();
+  $$("[data-ev]").forEach(el=>el.onclick=e=>{
+    if(justDragged){justDragged=false;return}
+    e.stopPropagation();
     const[id,cid]=el.dataset.ev.split("|");
     let ev=S.events.find(x=>x.id===id&&x.calId===cid)||S.upcoming.find(x=>x.id===id&&x.calId===cid);
     if(ev){S.modal={type:"edit",form:editForm(ev),ev,recurring:ev.recurring};render()}});
+  // Drag-to-move / drag-to-resize on the week/day grid. Only vertical (time-of-day) movement is
+  // allowed — the delta is clamped so an event can never silently cross into a different
+  // calendar day than the one it's rendered in.
+  const pxToMin=(dy,colEl)=>dy/colEl.getBoundingClientRect().height*SPAN_H*60;
+  function onDragMove(e){
+    if(!dragState)return;
+    const dy=e.clientY-dragState.startY;
+    if(Math.abs(dy)>4)dragState.moved=true;
+    if(!dragState.moved)return;
+    let dm=Math.round(pxToMin(dy,dragState.col)/5)*5;
+    let ns,ne;
+    if(dragState.mode==="move"){
+      dm=Math.max(dragState.minDm,Math.min(dragState.maxDm,dm));
+      ns=new Date(dragState.origStart.getTime()+dm*60000);
+      ne=new Date(dragState.origEnd.getTime()+dm*60000);
+    }else{
+      ns=dragState.origStart;
+      ne=new Date(dragState.origEnd.getTime()+dm*60000);
+      const floor=new Date(ns.getTime()+15*60000);
+      if(ne<floor)ne=floor;
+      if(ne>dragState.dayEnd)ne=dragState.dayEnd;
+    }
+    dragState.newStart=ns;dragState.newEnd=ne;
+    const el=document.querySelector(`.ev[data-drag="${CSS.escape(dragState.id)}|${CSS.escape(dragState.cid)}"]`);
+    if(el){
+      const top=Math.max(0,Math.min((mins(ns)/60-DAY_START)/SPAN_H*100,100-PCT_MIN));
+      const hgt=Math.max(PCT_MIN,((ne-ns)/36e5)/SPAN_H*100);
+      el.style.top=top+"%";el.style.height=hgt+"%"}}
+  async function onDragEnd(){
+    document.onmousemove=null;document.onmouseup=null;
+    const ds=dragState;dragState=null;
+    if(!ds||!ds.moved||!ds.newStart)return;
+    justDragged=true;
+    const ev=S.events.find(x=>x.id===ds.id&&x.calId===ds.cid);
+    if(!ev)return;
+    const oldStart=ev.start,oldEnd=ev.end;
+    ev.start=ds.newStart;ev.end=ds.newEnd;render();
+    try{
+      await api(`/calendars/${encodeURIComponent(ds.cid)}/events/${encodeURIComponent(ds.id)}`,{method:"PATCH",
+        body:JSON.stringify({start:{dateTime:ds.newStart.toISOString(),timeZone:TZ},
+          end:{dateTime:ds.newEnd.toISOString(),timeZone:TZ}})});
+      toast((ds.mode==="resize"?"Resized · ":"Moved · ")+ev.title)}
+    catch(err){ev.start=oldStart;ev.end=oldEnd;render();toast(err.message,true)}}
+  const startDrag=(id,cid,mode,e,handleEl)=>{
+    const ev=S.events.find(x=>x.id===id&&x.calId===cid);
+    if(!ev)return;
+    const col=handleEl.closest(".daycol");if(!col)return;
+    const dayStart=new Date(ev.start);dayStart.setHours(0,0,0,0);
+    const dayEnd=new Date(dayStart);dayEnd.setDate(dayEnd.getDate()+1);
+    const duration=ev.end-ev.start;
+    dragState={id,cid,mode,startY:e.clientY,origStart:new Date(ev.start),origEnd:new Date(ev.end),
+      col,dayStart,dayEnd,moved:false,
+      minDm:(dayStart-ev.start)/60000,maxDm:(dayEnd-duration-ev.start)/60000};
+    document.onmousemove=onDragMove;document.onmouseup=onDragEnd};
+  $$("[data-resize]").forEach(h=>h.onmousedown=e=>{
+    if(e.button!==0)return;e.preventDefault();e.stopPropagation();
+    const[id,cid]=h.dataset.resize.split("|");startDrag(id,cid,"resize",e,h)});
+  $$("[data-drag]").forEach(el=>el.onmousedown=e=>{
+    if(e.button!==0||e.target.closest("[data-resize]"))return;
+    e.preventDefault();
+    const[id,cid]=el.dataset.drag.split("|");startDrag(id,cid,"move",e,el)});
   $$(".daycol").forEach(c=>c.ondblclick=e=>{if(e.target.closest(".ev"))return;
     const r=c.getBoundingClientRect();
     const hr=Math.min(23,Math.max(0,Math.floor(DAY_START+(e.clientY-r.top)/r.height*SPAN_H)));
     S.modal={type:"new",form:newForm(c.dataset.day,hr)};render()});
   $$("[data-close]").forEach(el=>el.onclick=e=>{if(e.target===el){S.modal=null;render()}});
   $$("[data-pick]").forEach(b=>b.onclick=()=>{S.colors[S.modal.calId]=b.dataset.pick;savePrefs();S.modal=null;render()});
+  $$("[data-pickcat]").forEach(b=>b.onclick=()=>{S.catColors[S.modal.cat]=b.dataset.pickcat;savePrefs();S.modal=null;render()});
   const fa=$("#f-a");if(fa)fa.onchange=()=>{readForm();S.modal.form.allDay=fa.checked;render()};
   const fs=$("#f-save");if(fs)fs.onclick=async()=>{
     const f=readForm();S.saving=true;render();
@@ -774,6 +973,18 @@ function wire(){
   $$("[data-fold]").forEach(h=>h.onclick=()=>{const c=h.dataset.fold;S.collapsed[c]=!S.collapsed[c];savePrefs();render()});
   $$("[data-catedit]").forEach(b=>b.onclick=e=>{e.stopPropagation();S.editCat=b.dataset.catedit;render();
     const inp=document.querySelector("[data-catedit-input]");if(inp){inp.focus();inp.select()}});
+  $$("[data-catcolor]").forEach(b=>b.onclick=e=>{e.stopPropagation();S.modal={type:"catcolor",cat:b.dataset.catcolor};render()});
+  $$("[data-dueedit]").forEach(el=>el.onclick=e=>{e.stopPropagation();S.editDue=el.dataset.dueedit;render();
+    const inp=document.querySelector("[data-dueedit-input]");if(inp)inp.focus()});
+  const diEl=$("[data-dueedit-input]");
+  if(diEl){diEl.onclick=e=>e.stopPropagation();
+    diEl.onchange=()=>commitDueEdit(S.editDue);
+    diEl.onblur=()=>commitDueEdit(S.editDue);
+    diEl.onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();commitDueEdit(S.editDue)}
+      else if(e.key==="Escape"){e.preventDefault();S.editDue=null;render()}}}
+  const se=$("#search");
+  if(se){se.oninput=()=>{S.search=se.value;S._searchPos=se.selectionStart;S._searchFocused=true;render()};
+    se.onfocus=()=>{S._searchFocused=true};se.onblur=()=>{S._searchFocused=false}}
   const ciEl=$("[data-catedit-input]");
   if(ciEl){ciEl.onclick=e=>e.stopPropagation();
     ciEl.onblur=()=>commitCatRename(S.editCat);
@@ -788,28 +999,52 @@ function wire(){
       else if(e.key==="Escape"){e.preventDefault();S.editTask=null;render()}}}
   $$("[data-tagcycle]").forEach(el=>el.onclick=e=>{e.stopPropagation();
     const t=S.tasks.find(x=>x.id===el.dataset.tagcycle);
-    if(t){t.tag=TAGS[(TAGS.indexOf(t.tag)+1)%TAGS.length];saveTasks();render()}});
+    if(!t)return;
+    const old=t.tag;t.tag=TAGS[(TAGS.indexOf(t.tag)+1)%TAGS.length];saveTasks();render();
+    const listId=listMap[t.cat];
+    if(listId)tapi(`/lists/${encodeURIComponent(listId)}/tasks/${encodeURIComponent(t.id)}`,
+      {method:"PATCH",body:JSON.stringify({notes:"["+t.tag+"]"})})
+      .catch(err=>{t.tag=old;saveTasks();render();toast("Sync failed: "+err.message,true)})});
   $$("[data-tg]").forEach(el=>{const go=()=>{const t=S.tasks.find(x=>x.id===el.dataset.tg);
-    if(t){t.done=!t.done;saveTasks();render();if(t.done)toast("Completed · "+t.text)}};
+    if(!t)return;
+    const was=t.done;t.done=!t.done;saveTasks();render();if(t.done)toast("Completed · "+t.text);
+    const listId=listMap[t.cat];
+    if(listId)tapi(`/lists/${encodeURIComponent(listId)}/tasks/${encodeURIComponent(t.id)}`,
+      {method:"PATCH",body:JSON.stringify({status:t.done?"completed":"needsAction"})})
+      .catch(err=>{t.done=was;saveTasks();render();toast("Sync failed: "+err.message,true)})};
     el.onclick=go;el.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go()}}});
   $$("[data-rm]").forEach(el=>el.onclick=()=>{const t=S.tasks.find(x=>x.id===el.dataset.rm);
-    S.tasks=S.tasks.filter(x=>x.id!==el.dataset.rm);saveTasks();render();if(t)toast("Removed · "+t.text)});
+    if(!t)return;
+    S.tasks=S.tasks.filter(x=>x.id!==el.dataset.rm);saveTasks();render();toast("Removed · "+t.text);
+    const listId=listMap[t.cat];
+    if(listId)tapi(`/lists/${encodeURIComponent(listId)}/tasks/${encodeURIComponent(t.id)}`,{method:"DELETE"})
+      .catch(err=>{S.tasks.push(t);saveTasks();render();toast("Sync failed, restored: "+err.message,true)})});
   $$("[data-add]").forEach(b=>{const cat=b.dataset.add;
     const add=()=>{const i=document.querySelector(`[data-in="${CSS.escape(cat)}"]`),
-      s=document.querySelector(`[data-sel="${CSS.escape(cat)}"]`),v=i.value.trim();if(!v)return;
-      S.tasks.push({id:uid(),cat,text:v,tag:s.value,due:null,done:false});saveTasks();render();
+      s=document.querySelector(`[data-sel="${CSS.escape(cat)}"]`),
+      du=document.querySelector(`[data-duein="${CSS.escape(cat)}"]`),v=i.value.trim();if(!v)return;
+      const t={id:uid(),cat,text:v,tag:s.value,due:du&&du.value?du.value+"T23:59":null,done:false,_addedAt:Date.now()};
+      S.tasks.push(t);saveTasks();render();
       toast("Added to "+cat);
-      const n=document.querySelector(`[data-in="${CSS.escape(cat)}"]`);if(n)n.focus()};
+      const n=document.querySelector(`[data-in="${CSS.escape(cat)}"]`);if(n)n.focus();
+      (async()=>{try{
+        const listId=listMap[cat]||await ensureList(cat);
+        const body={title:t.text,notes:"["+t.tag+"]",status:"needsAction"};
+        if(t.due)body.due=new Date(t.due.slice(0,10)+"T00:00:00Z").toISOString();
+        const d=await tapi(`/lists/${encodeURIComponent(listId)}/tasks`,{method:"POST",body:JSON.stringify(body)});
+        t.id=d.id;saveTasks()
+      }catch(e){/* stays local-only; picked up once Tasks sync is reachable again */}})()};
     b.onclick=add;
     document.querySelector(`[data-in="${CSS.escape(cat)}"]`).onkeydown=e=>{if(e.key==="Enter")add()}});
   const nc=$("#newcat");if(nc)nc.onkeydown=e=>{if(e.key==="Enter"){const v=nc.value.trim();
-    if(v&&!S.cats.includes(v)){S.cats.push(v);savePrefs();render()}}};
+    if(v&&!S.cats.includes(v)){S.cats.push(v);savePrefs();render();ensureList(v).catch(()=>{})}}};
 }
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&S.modal){S.modal=null;render()}});
 setInterval(()=>{if(!S.signedIn||S.view==="month"||S.modal)return;
   const nl=document.querySelector(".nowline");
   if(nl)nl.style.top=((mins(new Date())/60-DAY_START)/SPAN_H*100).toFixed(3)+"%"},30000);
 loadLocal();render();initAuth();
+loadWeather();setInterval(loadWeather,30*60000);
 </script>
 </body>
 </html>
