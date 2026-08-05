@@ -876,7 +876,7 @@ function wire(){
   $("#prev").onclick=()=>step(-1);$("#next").onclick=()=>step(1);
   const rf=$("#rf");if(rf)rf.onclick=()=>refresh();
   const o=$("#out");if(o)o.onclick=signOut;
-  const fs=$("#fs");if(fs)fs.onclick=()=>{
+  const fsb=$("#fs");if(fsb)fsb.onclick=()=>{
     if(document.fullscreenElement)document.exitFullscreen();
     else document.documentElement.requestFullscreen().catch(()=>{})};
   const cn=$("#connect");if(cn)cn.onclick=()=>connect(true);
