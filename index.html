@@ -14,6 +14,8 @@
   --void:#000000;--deep:#050509;--panel:#0A0912;--panel2:#0E0C18;
   --edge:#1E1733;--edge2:#2E2450;--hair:rgba(139,92,246,.13);
   --violet:#8B5CF6;--violet-hot:#B98BFF;--cyan:#22D3EE;--alert:#FF2D55;--alert-hot:#FF6B85;--ok:#33D69F;
+  /* orange is reserved for class meetings — never used for anything else */
+  --orange:#FF8A3D;--orange-hot:#FFB067;
   --text:#E9E4FA;--muted:#7D739C;--faint:#4A4166;
   /* --minHour is the shortest an hour row may get before the grid starts scrolling */
   --minHour:26px;--gap:18px;--pad:22px;
@@ -131,12 +133,19 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 /* hiding the tasks rail hands the freed width back to the calendar */
 .row:has(.rail.hide) .main{flex:1 1 auto;max-width:100%}
 
-/* upcoming strip */
+/* ── three stacked feeds: classes (orange) → events (violet) → tasks (red) ──
+   Each feed is a .upnav header + a .upstrip of cards. The accent colour is set
+   per-feed by the .cls / .evt / .tsk modifier on both the nav and its cards. */
+.feeds{display:flex;flex-direction:column;gap:7px;flex-shrink:0}
 .upnav{display:flex;align-items:center;gap:8px;flex-shrink:0}
 .upnav h2{font-family:'JetBrains Mono',monospace;font-size:.56rem;letter-spacing:.24em;text-transform:uppercase;
   color:var(--alert-hot);margin:0;white-space:nowrap}
 .upnav .ln{flex:1;height:1px;background:linear-gradient(90deg,rgba(255,45,85,.45),transparent)}
 .upnav .ct{font-family:'JetBrains Mono',monospace;font-size:.53rem;color:var(--faint)}
+.upnav.cls h2{color:var(--orange-hot)}
+.upnav.cls .ln{background:linear-gradient(90deg,rgba(255,138,61,.5),transparent)}
+.upnav.evt h2{color:var(--violet-hot)}
+.upnav.evt .ln{background:linear-gradient(90deg,rgba(139,92,246,.45),transparent)}
 .wx{font-family:'JetBrains Mono',monospace;font-size:.62rem;color:var(--muted);white-space:nowrap}
 .upstrip{display:flex;gap:8px;overflow-x:auto;padding-bottom:3px;flex-shrink:0;min-height:60px}
 .upcard{flex:0 0 auto;min-width:172px;max-width:230px;border:1px solid rgba(255,45,85,.34);
@@ -144,6 +153,20 @@ button,input,select,textarea{font-family:inherit;color:inherit}
   padding:7px 10px;cursor:pointer;position:relative}
 .upcard:hover{border-color:var(--alert);background:linear-gradient(135deg,rgba(255,45,85,.18),rgba(10,9,18,.8))}
 .upcard.task{border-color:rgba(255,45,85,.28)}
+/* class meeting */
+.upcard.cls{border-color:rgba(255,138,61,.34);border-left-color:var(--orange);
+  background:linear-gradient(135deg,rgba(255,138,61,.11),rgba(10,9,18,.75))}
+.upcard.cls:hover{border-color:var(--orange);background:linear-gradient(135deg,rgba(255,138,61,.19),rgba(10,9,18,.8))}
+.upcard.cls .when{color:var(--orange-hot)}
+.upcard.cls.hud::before,.upcard.cls.hud::after,
+.upcard.cls.hud>.br1,.upcard.cls.hud>.br2{border-color:var(--orange)}
+/* a class that has already finished today stays listed but recedes */
+.upcard.cls.past{opacity:.38}
+/* non-class calendar event */
+.upcard.evt{border-color:rgba(139,92,246,.32);border-left-color:var(--violet);
+  background:linear-gradient(135deg,rgba(139,92,246,.1),rgba(10,9,18,.75))}
+.upcard.evt:hover{border-color:var(--violet);background:linear-gradient(135deg,rgba(139,92,246,.17),rgba(10,9,18,.8))}
+.upcard.evt .when{color:var(--violet-hot)}
 .upcard .when{font-family:'JetBrains Mono',monospace;font-size:.5rem;letter-spacing:.16em;text-transform:uppercase;
   color:var(--alert-hot);display:flex;justify-content:space-between;gap:6px}
 .upcard .when i{font-style:normal;color:var(--faint)}
@@ -355,7 +378,7 @@ const DAY_START=6,DAY_END=24.5,SPAN_H=DAY_END-DAY_START;
 // 6 AM → 12:30 AM window always fits exactly — no px fitting, no measuring, no resize pass.
 const PCT_MIN=(25/60)/SPAN_H*100;   // 25-minute floor, as a share of the window
 const hourLabel=i=>{const x=i%24;return x===0?"12 AM":x===12?"12 PM":x>12?(x-12)+" PM":x+" AM"};
-const SEED_CATS=["C S 429","NEU 330","SDS 321","CH 320M","PSY 301","Pierce Lab","Avocado Health","ACC"];
+const SEED_CATS=["NEU 330","PHY 317K","CH 320M","SDS 321","PSY 301","Pierce Lab","Avocado Health","ACC"];
 const TAGS=["General","ASAP","Deadline"];
 const SEED_TASKS=[
  {id:"s1",cat:"Pierce Lab",text:"Generate histograms",tag:"General",due:null,done:false},
@@ -375,11 +398,19 @@ function loadLocal(){
   try{const p=JSON.parse(localStorage.getItem(LS.prefs)||"{}");
     Object.assign(S,{vis:p.vis||{},colors:p.colors||{},catColors:p.catColors||{},collapsed:p.collapsed||{}});
     if(p.view)S.view=p.view;if(p.interval!=null)S.interval=p.interval;if(p.cats)S.cats=p.cats;
-    if(p.sideHide!=null)S.sideHide=p.sideHide;if(p.railHide)S.railHide=p.railHide}catch(e){}
+    // sideHide is deliberately NOT restored — Controls always loads collapsed.
+    if(p.railHide)S.railHide=p.railHide}catch(e){}
   try{const t=localStorage.getItem(LS.tasks);if(t)S.tasks=JSON.parse(t)}catch(e){}
 }
 const catCol=cat=>S.catColors[cat]||"#8B5CF6";
 const matchesSearch=t=>!S.search||t.toLowerCase().includes(S.search.toLowerCase());
+// Office hours live on an external calendar we don't control, so they're dropped at the
+// mapping layer — they never enter S.events/S.upcoming and are never rendered or counted.
+const OFFICE_HOURS=/office\s*hours/i;
+// A "class meeting" is a recurring instance on the class calendar. Matched by calendar
+// NAME rather than id so the id isn't baked into the file.
+const CLASS_CAL=/^sophomore\s*sem\s*1$/i;
+const CLASS_COLOR="#FF8A3D"; // must stay in sync with --orange
 const pad=n=>String(n).padStart(2,"0");
 const iso=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
 const sameDay=(a,b)=>iso(a)===iso(b);
@@ -511,6 +542,7 @@ async function loadCals(){
 function mapEvents(items,calId){
   const out=[];
   (items||[]).forEach(e=>{if(e.status==="cancelled")return;
+    if(OFFICE_HOURS.test(e.summary||""))return;
     const allDay=!!(e.start&&e.start.date);
     out.push({id:e.id,calId,title:e.summary||"(no title)",allDay,
       start:new Date(allDay?e.start.date+"T00:00:00":e.start.dateTime),
@@ -528,8 +560,10 @@ async function loadEvents(){
   S.events=out}
 async function loadUpcoming(){
   const on=S.cals.filter(c=>S.vis[c.id]!==false);
-  const now=new Date(),to=addDays(now,10);
-  const q=`?timeMin=${now.toISOString()}&timeMax=${to.toISOString()}&singleEvents=true&orderBy=startTime&maxResults=25`;
+  // Window opens at midnight, not now, so a 9 AM class still shows in the Today strip at
+  // 5 PM. The Upcoming feed re-filters to future-only itself.
+  const now=new Date(),from=new Date(new Date().setHours(0,0,0,0)),to=addDays(now,10);
+  const q=`?timeMin=${from.toISOString()}&timeMax=${to.toISOString()}&singleEvents=true&orderBy=startTime&maxResults=100`;
   const out=[];
   await Promise.all(on.map(async c=>{try{
     const d=await api(`/calendars/${encodeURIComponent(c.id)}/events${q}`);
@@ -577,6 +611,15 @@ const col=id=>S.colors[id]||"#8B5CF6";
 function tint(hex,a){const n=parseInt(hex.replace("#",""),16);
   return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`}
 function calName(id){const c=S.cals.find(x=>x.id===id);return c?c.name:""}
+const isClass=e=>e.recurring&&!e.allDay&&CLASS_CAL.test(calName(e.calId));
+// Feed A: every class meeting that starts today, finished ones included (dimmed).
+function todayClasses(){const td=new Date();
+  return S.upcoming.filter(e=>isClass(e)&&sameDay(e.start,td)).sort((x,y)=>x.start-y.start)}
+// Feed B: everything else still ahead of us. Class meetings are excluded outright so the
+// strip isn't drowned by the ~14 recurring meetings a week.
+function upcomingEvents(){const now=new Date();
+  return S.upcoming.filter(e=>!isClass(e)&&(e.allDay?e.start>=new Date(new Date().setHours(0,0,0,0)):e.end>now))
+    .sort((x,y)=>x.start-y.start)}
 function onDay(d){return S.events.filter(e=>{
     if(S.vis[e.calId]===false)return false;
     if(e.allDay)return iso(d)>=iso(e.start)&&iso(d)<=iso(addDays(e.end,-1));
@@ -695,29 +738,52 @@ function gate(){
   return `<div class="gate"><h2>Connect Google Calendar</h2>
     <p>Sign in with your Google account to load your calendars.</p>
     <button class="pri" id="connect">Sign in with Google</button></div>`}
+// One feed = header row + card strip. `extra` hangs the global controls off the first header.
+function feedHTML(mod,title,count,cards,empty,extra){
+  return `<div class="upnav ${mod}"><h2>◤ ${title}</h2><div class="ln"></div>
+    <span class="ct">${count}</span>${extra||""}</div>`+
+    (cards.length?`<div class="upstrip">${cards.join("")}</div>`
+                 :`<div class="upstrip"><div class="upempty">${empty}</div></div>`)}
+function cardHTML(mod,when,kind,ttl,sub,ev){
+  return `<div class="upcard ${mod} hud" ${ev?`data-ev="${esc(ev)}"`:""}>
+    <span class="br1"></span><span class="br2"></span>
+    <div class="when"><span>${esc(when)}</span><i>${kind}</i></div>
+    <div class="ttl">${esc(ttl)}</div>
+    <div class="sub">${esc(sub)}</div></div>`}
 function upcomingHTML(){
-  const evs=S.upcoming.slice(0,10).map(e=>({kind:"event",when:e.start,title:e.title,
-    sub:calName(e.calId),id:e.id,calId:e.calId}));
-  const tks=urgentTasks().map(t=>({kind:"task",when:t.due?new Date(t.due):null,title:t.text,
-    sub:t.cat+" · "+t.tag,id:t.id}));
-  let all=[...evs,...tks].sort((a,b)=>{
-    if(a.when&&b.when)return a.when-b.when;if(a.when)return -1;if(b.when)return 1;return 0}).slice(0,12);
-  if(S.search)all=all.filter(x=>matchesSearch(x.title)||matchesSearch(x.sub));
-  let h=`<div class="upnav"><h2>◤ Upcoming</h2><div class="ln"></div><span class="ct">${all.length} items · next 10 days</span>
-    ${weatherHTML()}
+  const now=new Date();
+  const hit=(a,b)=>!S.search||matchesSearch(a)||matchesSearch(b);
+  const controls=`${weatherHTML()}
     <div id="stat" class="stat"><span class="dot"></span>idle</div>
     <button class="tbtn" id="fs">${document.fullscreenElement?"Exit ⛶":"Fullscreen ⛶"}</button>
     <button class="tbtn" id="rf">Refresh</button>
-    <button class="tbtn" id="out">Sign out</button></div>`;
-  if(!all.length)return h+`<div class="upstrip"><div class="upempty">${S.search?"NO MATCHES":"NOTHING URGENT — ALL CLEAR"}</div></div>`;
-  h+=`<div class="upstrip">`;
-  all.forEach(x=>{
-    h+=`<div class="upcard ${x.kind==="task"?"task":""} hud" ${x.kind==="event"?`data-ev="${esc(x.id)}|${esc(x.calId)}"`:""}>
-      <span class="br1"></span><span class="br2"></span>
-      <div class="when"><span>${x.when?relWhen(x.when):"no date"}</span><i>${x.kind==="task"?"TASK":"EVT"}</i></div>
-      <div class="ttl">${esc(x.title)}</div>
-      <div class="sub">${esc(x.sub)}</div></div>`});
-  return h+`</div>`}
+    <button class="tbtn" id="out">Sign out</button>`;
+
+  // ── Feed A — today's class meetings only ──
+  const cls=todayClasses().filter(e=>hit(e.title,e.location||""));
+  const clsCards=cls.map(e=>cardHTML("cls"+(e.end<now?" past":""),
+    `${fmtT(e.start)}–${fmtT(e.end)}`,"CLS",e.title,e.location||calName(e.calId),
+    `${e.id}|${e.calId}`));
+
+  // ── Feed B — other upcoming events, classes excluded ──
+  const evs=upcomingEvents().filter(e=>hit(e.title,calName(e.calId))).slice(0,12);
+  const evCards=evs.map(e=>cardHTML("evt",e.allDay?relWhen(e.start)+" · all-day":relWhen(e.start),
+    "EVT",e.title,calName(e.calId),`${e.id}|${e.calId}`));
+
+  // ── Feed C — tasks only ──
+  const tks=urgentTasks().filter(t=>hit(t.text,t.cat));
+  const tkCards=tks.map(t=>cardHTML("task",t.due?relWhen(new Date(t.due)):"no date",
+    "TASK",t.text,t.cat+" · "+t.tag,null));
+
+  const noMatch=S.search?"NO MATCHES":null;
+  return `<div class="feeds">`+
+    feedHTML("cls","Today's Classes",cls.length?`${cls.length} today`:"none",clsCards,
+      noMatch||"NO CLASSES TODAY",controls)+
+    feedHTML("evt","Upcoming",`${evs.length} · next 10 days`,evCards,
+      noMatch||"NOTHING SCHEDULED")+
+    feedHTML("tsk","Tasks",`${tks.length} urgent`,tkCards,
+      noMatch||"NOTHING URGENT — ALL CLEAR")+
+    `</div>`}
 function calRow(c){
   const on=S.vis[c.id]!==false;
   return `<div class="calrow ${on?"":"off"}" data-cal="${esc(c.id)}">
@@ -757,7 +823,7 @@ function weekView(){
       if(top<0){hgt+=top;top=0}
       top=Math.min(top,100-PCT_MIN);
       hgt=Math.max(PCT_MIN,Math.min(hgt,100-top));
-      const w=100/p.n,c2=col(e.calId),dim=S.search&&!matchesSearch(e.title)?"dim":"";
+      const w=100/p.n,c2=isClass(e)?CLASS_COLOR:col(e.calId),dim=S.search&&!matchesSearch(e.title)?"dim":"";
       h+=`<div class="ev ${dim}" data-ev="${esc(e.id)}|${esc(e.calId)}" data-drag="${esc(e.id)}|${esc(e.calId)}"
         style="top:${top.toFixed(3)}%;height:${hgt.toFixed(3)}%;left:calc(${p.i*w}% + 1px);width:calc(${w}% - 2px);
         background:${tint(c2,.22)};border-left-color:${c2};color:${c2}">
@@ -772,9 +838,10 @@ function monthView(){
   for(let i=0;i<42;i++){const d=addDays(a,i),list=onDay(d);
     h+=`<div class="mcell ${d.getMonth()!==m?"out":""} ${sameDay(d,td)?"today":""}" data-new="${iso(d)}">
       <div class="dnum">${d.getDate()}</div>
-      ${list.slice(0,3).map(e=>`<div class="chip ${S.search&&!matchesSearch(e.title)?"dim":""}" data-ev="${esc(e.id)}|${esc(e.calId)}"
-        style="background:${tint(col(e.calId),.18)};border-left-color:${col(e.calId)}">${
-        e.allDay?"":`<span class="mono" style="color:${col(e.calId)};font-size:.48rem">${fmtT(e.start)} </span>`}${esc(e.title)}</div>`).join("")}
+      ${list.slice(0,3).map(e=>{const c2=isClass(e)?CLASS_COLOR:col(e.calId);
+        return `<div class="chip ${S.search&&!matchesSearch(e.title)?"dim":""}" data-ev="${esc(e.id)}|${esc(e.calId)}"
+        style="background:${tint(c2,.18)};border-left-color:${c2}">${
+        e.allDay?"":`<span class="mono" style="color:${c2};font-size:.48rem">${fmtT(e.start)} </span>`}${esc(e.title)}</div>`}).join("")}
       ${list.length>3?`<div class="more">+${list.length-3}</div>`:""}</div>`}
   return h+"</div></div>"}
 function modHTML(cat){
