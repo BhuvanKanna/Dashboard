@@ -162,6 +162,33 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .upcard.cls.hud>.br1,.upcard.cls.hud>.br2{border-color:var(--orange)}
 /* a class that has already finished today stays listed but recedes */
 .upcard.cls.past{opacity:.38}
+/* ── task urgency tiers ──
+   urgent = due before Monday's reset (full red, bold). later = beyond it (greyed back, so
+   the eye lands on this week's work first). overdue = past due and still not ticked off. */
+.upcard.task.urgent .ttl{font-weight:700}
+.upcard.task.later{border-color:var(--edge2);border-left-color:var(--muted);
+  background:linear-gradient(135deg,rgba(125,115,156,.06),rgba(10,9,18,.75))}
+.upcard.task.later:hover{border-color:var(--muted);
+  background:linear-gradient(135deg,rgba(125,115,156,.1),rgba(10,9,18,.8))}
+.upcard.task.later .when{color:var(--muted)}
+.upcard.task.later .ttl{font-weight:400;color:var(--muted)}
+.upcard.task.overdue{border-left-width:3px;border-left-color:var(--alert-hot)}
+.upcard.task.overdue .when{color:var(--alert-hot);font-weight:700}
+.upcard.task.done{opacity:.5}
+.upcard.task.done .ttl{text-decoration:line-through;font-weight:400}
+/* tick control */
+.upbox{width:10px;height:10px;padding:0;flex:0 0 auto;cursor:pointer;background:transparent;
+  border:1px solid currentColor;margin-right:1px}
+.upbox:hover{background:currentColor}
+.upbox.on{background:currentColor}
+.donefold{display:flex;align-items:center;gap:6px;background:none;border:none;cursor:pointer;
+  font-family:'JetBrains Mono',monospace;font-size:.53rem;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--faint);padding:2px 0}
+.donefold:hover{color:var(--muted)}
+.donefold b{color:var(--muted);font-weight:500}
+.donefold .caret{display:inline-block;transform:rotate(-90deg);font-size:.6rem}
+.donefold.open .caret{transform:none}
+.upstrip.done{min-height:0}
 /* non-class calendar event */
 .upcard.evt{border-color:rgba(139,92,246,.32);border-left-color:var(--violet);
   background:linear-gradient(135deg,rgba(139,92,246,.1),rgba(10,9,18,.75))}
@@ -370,7 +397,8 @@ const TZ=Intl.DateTimeFormat().resolvedOptions().timeZone||"America/Chicago";
 const PALETTE=["#8B5CF6","#22D3EE","#FF2D55","#33D69F","#F6BF26","#F4511E","#E67C73","#3F51B5","#8E24AA","#0B8043","#616161"];
 const DOW=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const MON=["January","February","March","April","May","June","July","August","September","October","November","December"];
-const LS={prefs:"bd.prefs",tasks:"bd.tasks",listMap:"bd.listMap",tasksSynced:"bd.tasksSynced"};
+const LS={prefs:"bd.prefs",tasks:"bd.tasks",listMap:"bd.listMap",tasksSynced:"bd.tasksSynced",
+  doneEv:"bd.doneEv"};
 // Visible day window: 6 AM through 12:30 AM. The half hour past midnight exists so a
 // 11:59 PM item renders at full height instead of being clipped by the grid bottom.
 const DAY_START=6,DAY_END=24.5,SPAN_H=DAY_END-DAY_START;
@@ -389,11 +417,15 @@ const SEED_TASKS=[
 let S={view:"week",cursor:new Date(),mini:new Date(),cals:[],events:[],upcoming:[],
   vis:{},colors:{},catColors:{},collapsed:{},interval:5,cats:SEED_CATS.slice(),tasks:SEED_TASKS.slice(),
   status:"idle",error:null,modal:null,saving:false,signedIn:false,sideHide:true,railHide:false,
-  editTask:null,editCat:null,editDue:null,search:"",_searchFocused:false,_searchPos:0,weather:null};
+  editTask:null,editCat:null,editDue:null,search:"",_searchFocused:false,_searchPos:0,weather:null,
+  // Canvas coursework has no "done" flag of its own — completion is ours, keyed by
+  // calId|eventId and kept locally. Value is the ISO time it was ticked off.
+  doneEv:{},showDone:false};
 
 function savePrefs(){localStorage.setItem(LS.prefs,JSON.stringify({vis:S.vis,colors:S.colors,catColors:S.catColors,
   view:S.view,interval:S.interval,collapsed:S.collapsed,cats:S.cats,sideHide:S.sideHide,railHide:S.railHide}))}
 function saveTasks(){localStorage.setItem(LS.tasks,JSON.stringify(S.tasks))}
+function saveDone(){localStorage.setItem(LS.doneEv,JSON.stringify(S.doneEv))}
 function loadLocal(){
   try{const p=JSON.parse(localStorage.getItem(LS.prefs)||"{}");
     Object.assign(S,{vis:p.vis||{},colors:p.colors||{},catColors:p.catColors||{},collapsed:p.collapsed||{}});
@@ -401,6 +433,7 @@ function loadLocal(){
     // sideHide is deliberately NOT restored — Controls always loads collapsed.
     if(p.railHide)S.railHide=p.railHide}catch(e){}
   try{const t=localStorage.getItem(LS.tasks);if(t)S.tasks=JSON.parse(t)}catch(e){}
+  try{S.doneEv=JSON.parse(localStorage.getItem(LS.doneEv)||"{}")}catch(e){S.doneEv={}}
 }
 const catCol=cat=>S.catColors[cat]||"#8B5CF6";
 const matchesSearch=t=>!S.search||t.toLowerCase().includes(S.search.toLowerCase());
@@ -580,10 +613,11 @@ async function loadEvents(){
   S.events=out}
 async function loadUpcoming(){
   const on=S.cals.filter(c=>S.vis[c.id]!==false);
-  // Window opens at midnight, not now, so a 9 AM class still shows in the Today strip at
-  // 5 PM. The Upcoming feed re-filters to future-only itself.
-  const now=new Date(),from=new Date(new Date().setHours(0,0,0,0)),to=addDays(now,10);
-  const q=`?timeMin=${from.toISOString()}&timeMax=${to.toISOString()}&singleEvents=true&orderBy=startTime&maxResults=100`;
+  // Reaches 30 days back so coursework you never ticked off stays on the board instead of
+  // silently ageing out — an overdue assignment is exactly the one you need to see. The
+  // classes and events feeds re-filter forward themselves.
+  const now=new Date(),from=addDays(new Date(new Date().setHours(0,0,0,0)),-30),to=addDays(now,10);
+  const q=`?timeMin=${from.toISOString()}&timeMax=${to.toISOString()}&singleEvents=true&orderBy=startTime&maxResults=250`;
   const out=[];
   await Promise.all(on.map(async c=>{try{
     const d=await api(`/calendars/${encodeURIComponent(c.id)}/events${q}`);
@@ -639,9 +673,21 @@ const isCanvas=e=>CANVAS_CAL.test(calName(e.calId));
 const isAssignment=e=>isCanvas(e)&&!EXAMLIKE.test(e.title);
 // Still ahead of us: all-day items count for the whole of today, timed ones until they end.
 const ahead=e=>e.allDay?e.start>=new Date(new Date().setHours(0,0,0,0)):e.end>new Date();
-// Coursework due dates off the Canvas feed — rendered in the Tasks feed, not Events.
+// The academic week resets on Monday, so "this week's work" is everything falling due
+// before the next reset. That is why a Monday deadline counts as urgent while the Tuesday
+// after it does not, and why the whole set re-arms every Monday.
+function weekEnd(){const d=new Date();d.setHours(23,59,59,999);
+  while(d.getDay()!==1)d.setDate(d.getDate()+1);
+  return d}
+const isUrgent=dt=>!!dt&&dt<=weekEnd();
+const evKey=e=>e.calId+"|"+e.id;
+const evDone=e=>!!S.doneEv[evKey(e)];
+// Deliberately NOT filtered by ahead() — coursework leaves this feed only when ticked off.
 function upcomingAssignments(){
-  return S.upcoming.filter(e=>isAssignment(e)&&ahead(e)).sort((x,y)=>x.start-y.start)}
+  return S.upcoming.filter(e=>isAssignment(e)&&!evDone(e)).sort((x,y)=>x.start-y.start)}
+function doneAssignments(){
+  return S.upcoming.filter(e=>isAssignment(e)&&evDone(e))
+    .sort((x,y)=>new Date(S.doneEv[evKey(y)])-new Date(S.doneEv[evKey(x)]))}
 // Everything left: exams, and anything on a calendar we manage by hand. Class meetings are
 // excluded outright so the strip isn't drowned by the ~14 recurring meetings a week.
 function upcomingEvents(){
@@ -770,10 +816,13 @@ function feedHTML(mod,title,count,cards,empty,extra){
     <span class="ct">${count}</span>${extra||""}</div>`+
     (cards.length?`<div class="upstrip">${cards.join("")}</div>`
                  :`<div class="upstrip"><div class="upempty">${empty}</div></div>`)}
-function cardHTML(mod,when,kind,ttl,sub,ev){
+// `box` (optional) is {attr,val,on} and renders the tick control that completes an item.
+function cardHTML(mod,when,kind,ttl,sub,ev,box){
   return `<div class="upcard ${mod} hud" ${ev?`data-ev="${esc(ev)}"`:""}>
     <span class="br1"></span><span class="br2"></span>
-    <div class="when"><span>${esc(when)}</span><i>${kind}</i></div>
+    <div class="when">${box?`<button class="upbox ${box.on?"on":""}" ${box.attr}="${esc(box.val)}"
+      title="${box.on?"Mark not done":"Mark complete"}" aria-pressed="${!!box.on}"></button>`:""
+    }<span>${esc(when)}</span><i>${kind}</i></div>
     <div class="ttl">${esc(ttl)}</div>
     <div class="sub">${esc(sub)}</div></div>`}
 function upcomingHTML(){
@@ -792,16 +841,40 @@ function upcomingHTML(){
     `${e.id}|${e.calId}`));
 
   // ── Feed B — tasks: Canvas coursework due dates merged with our own urgent tasks ──
+  // Three tiers: overdue, due before Monday's reset (urgent), everything else. An all-day
+  // item is compared by date — one due today is due today, not overdue at 2 PM.
+  const t0=new Date(new Date().setHours(0,0,0,0));
+  const tier=(over,dt)=>over?"urgent overdue":isUrgent(dt)?"urgent":"later";
   const asg=upcomingAssignments().filter(e=>hit(e.title,calName(e.calId)));
   const tks=urgentTasks().filter(t=>hit(t.text,t.cat));
   const taskItems=[
     ...asg.map(e=>{const c=splitCourse(e.title);
-      return {mod:"task",when:e.allDay?relDay(e.start):relWhen(e.start),kind:"DUE",
-        ttl:c.title,sub:(c.course||"Canvas")+" · Due",sort:e.start,ev:`${e.id}|${e.calId}`}}),
-    ...tks.map(t=>({mod:"task",when:t.due?relWhen(new Date(t.due)):"no date",kind:"TASK",
-        ttl:t.text,sub:t.cat+" · "+t.tag,sort:t.due?new Date(t.due):null,ev:null}))
+      return {when:e.allDay?relDay(e.start):relWhen(e.start),kind:"DUE",
+        ttl:c.title,sub:(c.course||"Canvas")+" · Due",sort:e.start,ev:`${e.id}|${e.calId}`,
+        tier:tier(e.allDay?e.start<t0:e.start<now,e.start),
+        box:{attr:"data-evdone",val:evKey(e),on:false}}}),
+    // An ASAP task is urgent by definition — that is what the tag means — so it never
+    // drops to the "later" tier just because it carries no date.
+    ...tks.map(t=>{const dt=t.due?new Date(t.due):null;
+      return {when:dt?relWhen(dt):"no date",kind:"TASK",
+        ttl:t.text,sub:t.cat+" · "+t.tag,sort:dt,ev:null,
+        tier:t.tag==="ASAP"&&!(dt&&dt<now)?"urgent":tier(!!dt&&dt<now,dt),
+        box:{attr:"data-tg",val:t.id,on:false}}})
   ].sort((a,b)=>{if(a.sort&&b.sort)return a.sort-b.sort;if(a.sort)return -1;if(b.sort)return 1;return 0});
-  const tkCards=taskItems.map(x=>cardHTML(x.mod,x.when,x.kind,x.ttl,x.sub,x.ev));
+  const urgentN=taskItems.filter(x=>x.tier.startsWith("urgent")).length;
+  const tkCards=taskItems.map(x=>cardHTML("task "+x.tier,x.when,x.kind,x.ttl,x.sub,x.ev,x.box));
+
+  // Completed — collapsed by default, and the only way anything leaves the Tasks feed.
+  const doneA=doneAssignments().map(e=>{const c=splitCourse(e.title);
+    return cardHTML("task done",e.allDay?relDay(e.start):relWhen(e.start),"DUE",c.title,
+      (c.course||"Canvas")+" · Done",null,{attr:"data-evdone",val:evKey(e),on:true})});
+  const doneT=S.tasks.filter(t=>t.done).map(t=>cardHTML("task done",
+    t.due?relWhen(new Date(t.due)):"no date","TASK",t.text,t.cat+" · Done",null,
+    {attr:"data-tg",val:t.id,on:true}));
+  const doneCards=[...doneA,...doneT];
+  const doneHTML=doneCards.length?`<button class="donefold ${S.showDone?"open":""}" data-donefold>
+      <span class="caret">▾</span>Completed <b>${doneCards.length}</b></button>`+
+      (S.showDone?`<div class="upstrip done">${doneCards.join("")}</div>`:""):"";
 
   // ── Feed C — exams and anything we put on our own calendars by hand ──
   const evs=upcomingEvents().filter(e=>hit(e.title,calName(e.calId))).slice(0,12);
@@ -813,8 +886,9 @@ function upcomingHTML(){
   return `<div class="feeds">`+
     feedHTML("cls","Upcoming Classes",cls.length?`${cls.length} today`:"none today",clsCards,
       noMatch||"NO CLASSES TODAY",controls)+
-    feedHTML("tsk","Upcoming Tasks",`${asg.length} due · ${tks.length} urgent`,tkCards,
-      noMatch||"NOTHING URGENT — ALL CLEAR")+
+    feedHTML("tsk","Upcoming Tasks",
+      `${urgentN} this week · ${taskItems.length-urgentN} later`,tkCards,
+      noMatch||"NOTHING URGENT — ALL CLEAR")+doneHTML+
     feedHTML("evt","Upcoming Events",`${evs.length} · next 10 days`,evCards,
       noMatch||"NOTHING SCHEDULED")+
     `</div>`}
@@ -1114,6 +1188,14 @@ function wire(){
     if(listId)tapi(`/lists/${encodeURIComponent(listId)}/tasks/${encodeURIComponent(t.id)}`,
       {method:"PATCH",body:JSON.stringify({notes:"["+t.tag+"]"})})
       .catch(err=>{t.tag=old;saveTasks();render();toast("Sync failed: "+err.message,true)})});
+  $$("[data-evdone]").forEach(b=>b.onclick=e=>{
+    e.stopPropagation(); // the card behind it opens the event editor
+    const k=b.dataset.evdone,was=S.doneEv[k];
+    if(was)delete S.doneEv[k];else S.doneEv[k]=new Date().toISOString();
+    saveDone();render();
+    if(!was)toast("Completed")});
+  const dfold=$("[data-donefold]");
+  if(dfold)dfold.onclick=()=>{S.showDone=!S.showDone;savePrefs();render()};
   $$("[data-tg]").forEach(el=>{const go=()=>{const t=S.tasks.find(x=>x.id===el.dataset.tg);
     if(!t)return;
     const was=t.done;t.done=!t.done;saveTasks();render();if(t.done)toast("Completed · "+t.text);
