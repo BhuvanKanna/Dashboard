@@ -406,7 +406,9 @@ const catCol=cat=>S.catColors[cat]||"#8B5CF6";
 const matchesSearch=t=>!S.search||t.toLowerCase().includes(S.search.toLowerCase());
 // Office hours live on an external calendar we don't control, so they're dropped at the
 // mapping layer — they never enter S.events/S.upcoming and are never rendered or counted.
-const OFFICE_HOURS=/office\s*hours/i;
+// NEU 330 calls them "Drop-in Hours" and some courses say "Student Hours", so matching the
+// literal words "office hours" was letting those through. Match the whole family.
+const OFFICE_HOURS=/(office|drop[-\s]?in|student)\s*hours?\b/i;
 // A "class meeting" is a recurring instance on the class calendar. Matched by calendar
 // NAME rather than id so the id isn't baked into the file.
 const CLASS_CAL=/^sophomore\s*sem\s*1$/i;
@@ -777,12 +779,12 @@ function upcomingHTML(){
 
   const noMatch=S.search?"NO MATCHES":null;
   return `<div class="feeds">`+
-    feedHTML("cls","Today's Classes",cls.length?`${cls.length} today`:"none",clsCards,
+    feedHTML("cls","Upcoming Classes",cls.length?`${cls.length} today`:"none today",clsCards,
       noMatch||"NO CLASSES TODAY",controls)+
-    feedHTML("evt","Upcoming",`${evs.length} · next 10 days`,evCards,
-      noMatch||"NOTHING SCHEDULED")+
-    feedHTML("tsk","Tasks",`${tks.length} urgent`,tkCards,
+    feedHTML("tsk","Upcoming Tasks",`${tks.length} urgent`,tkCards,
       noMatch||"NOTHING URGENT — ALL CLEAR")+
+    feedHTML("evt","Upcoming Events",`${evs.length} · next 10 days`,evCards,
+      noMatch||"NOTHING SCHEDULED")+
     `</div>`}
 function calRow(c){
   const on=S.vis[c.id]!==false;
