@@ -413,6 +413,14 @@ const OFFICE_HOURS=/(office|drop[-\s]?in|student)\s*hours?\b/i;
 // NAME rather than id so the id isn't baked into the file.
 const CLASS_CAL=/^sophomore\s*sem\s*1$/i;
 const CLASS_COLOR="#FF8A3D"; // must stay in sync with --orange
+// The Canvas import feed carries two different kinds of thing. Coursework (quizzes,
+// homework, prelabs, muddiest point, writing assignments) is work you hand in, so it
+// belongs with tasks. Exams are something you show up and sit, so they stay events.
+const CANVAS_CAL=/canvas/i;
+const EXAMLIKE=/\b(exam|midterm|final)\b/i;
+// Canvas titles courses as a trailing bracket: "Quiz 4 - Alkane Structure [CH 320M/328M]".
+function splitCourse(t){const m=/^(.*?)\s*\[([^\]]+)\]\s*$/.exec(t||"");
+  return m?{title:m[1],course:m[2]}:{title:t||"",course:""}}
 const pad=n=>String(n).padStart(2,"0");
 const iso=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
 const sameDay=(a,b)=>iso(a)===iso(b);
@@ -441,6 +449,16 @@ function relWhen(d){
   if(days===1)return "tomorrow "+fmtT(d);
   if(days<7)return DOW[d.getDay()]+" "+fmtT(d);
   return (d.getMonth()+1)+"/"+d.getDate()+" "+fmtT(d)}
+// Same, minus the clock — an all-day Canvas due date has no meaningful time, and
+// relWhen() would render it as a misleading "12a".
+function relDay(d){
+  const now=new Date(),t0=new Date(now);t0.setHours(0,0,0,0);
+  const days=Math.round((new Date(d.getFullYear(),d.getMonth(),d.getDate())-t0)/864e5);
+  if(days<0)return "overdue";
+  if(days===0)return "today";
+  if(days===1)return "tomorrow";
+  if(days<7)return DOW[d.getDay()];
+  return (d.getMonth()+1)+"/"+d.getDate()}
 
 let tokenClient=null,token=null,tokenExp=0,pending=null;
 function initAuth(){
@@ -617,11 +635,17 @@ const isClass=e=>e.recurring&&!e.allDay&&CLASS_CAL.test(calName(e.calId));
 // Feed A: every class meeting that starts today, finished ones included (dimmed).
 function todayClasses(){const td=new Date();
   return S.upcoming.filter(e=>isClass(e)&&sameDay(e.start,td)).sort((x,y)=>x.start-y.start)}
-// Feed B: everything else still ahead of us. Class meetings are excluded outright so the
-// strip isn't drowned by the ~14 recurring meetings a week.
-function upcomingEvents(){const now=new Date();
-  return S.upcoming.filter(e=>!isClass(e)&&(e.allDay?e.start>=new Date(new Date().setHours(0,0,0,0)):e.end>now))
-    .sort((x,y)=>x.start-y.start)}
+const isCanvas=e=>CANVAS_CAL.test(calName(e.calId));
+const isAssignment=e=>isCanvas(e)&&!EXAMLIKE.test(e.title);
+// Still ahead of us: all-day items count for the whole of today, timed ones until they end.
+const ahead=e=>e.allDay?e.start>=new Date(new Date().setHours(0,0,0,0)):e.end>new Date();
+// Coursework due dates off the Canvas feed — rendered in the Tasks feed, not Events.
+function upcomingAssignments(){
+  return S.upcoming.filter(e=>isAssignment(e)&&ahead(e)).sort((x,y)=>x.start-y.start)}
+// Everything left: exams, and anything on a calendar we manage by hand. Class meetings are
+// excluded outright so the strip isn't drowned by the ~14 recurring meetings a week.
+function upcomingEvents(){
+  return S.upcoming.filter(e=>!isClass(e)&&!isAssignment(e)&&ahead(e)).sort((x,y)=>x.start-y.start)}
 function onDay(d){return S.events.filter(e=>{
     if(S.vis[e.calId]===false)return false;
     if(e.allDay)return iso(d)>=iso(e.start)&&iso(d)<=iso(addDays(e.end,-1));
@@ -767,21 +791,29 @@ function upcomingHTML(){
     `${fmtT(e.start)}–${fmtT(e.end)}`,"CLS",e.title,e.location||calName(e.calId),
     `${e.id}|${e.calId}`));
 
-  // ── Feed B — other upcoming events, classes excluded ──
-  const evs=upcomingEvents().filter(e=>hit(e.title,calName(e.calId))).slice(0,12);
-  const evCards=evs.map(e=>cardHTML("evt",e.allDay?relWhen(e.start)+" · all-day":relWhen(e.start),
-    "EVT",e.title,calName(e.calId),`${e.id}|${e.calId}`));
-
-  // ── Feed C — tasks only ──
+  // ── Feed B — tasks: Canvas coursework due dates merged with our own urgent tasks ──
+  const asg=upcomingAssignments().filter(e=>hit(e.title,calName(e.calId)));
   const tks=urgentTasks().filter(t=>hit(t.text,t.cat));
-  const tkCards=tks.map(t=>cardHTML("task",t.due?relWhen(new Date(t.due)):"no date",
-    "TASK",t.text,t.cat+" · "+t.tag,null));
+  const taskItems=[
+    ...asg.map(e=>{const c=splitCourse(e.title);
+      return {mod:"task",when:e.allDay?relDay(e.start):relWhen(e.start),kind:"DUE",
+        ttl:c.title,sub:(c.course||"Canvas")+" · Due",sort:e.start,ev:`${e.id}|${e.calId}`}}),
+    ...tks.map(t=>({mod:"task",when:t.due?relWhen(new Date(t.due)):"no date",kind:"TASK",
+        ttl:t.text,sub:t.cat+" · "+t.tag,sort:t.due?new Date(t.due):null,ev:null}))
+  ].sort((a,b)=>{if(a.sort&&b.sort)return a.sort-b.sort;if(a.sort)return -1;if(b.sort)return 1;return 0});
+  const tkCards=taskItems.map(x=>cardHTML(x.mod,x.when,x.kind,x.ttl,x.sub,x.ev));
+
+  // ── Feed C — exams and anything we put on our own calendars by hand ──
+  const evs=upcomingEvents().filter(e=>hit(e.title,calName(e.calId))).slice(0,12);
+  const evCards=evs.map(e=>{const c=splitCourse(e.title);
+    return cardHTML("evt",e.allDay?relDay(e.start):relWhen(e.start),
+      "EVT",c.title,c.course||calName(e.calId),`${e.id}|${e.calId}`)});
 
   const noMatch=S.search?"NO MATCHES":null;
   return `<div class="feeds">`+
     feedHTML("cls","Upcoming Classes",cls.length?`${cls.length} today`:"none today",clsCards,
       noMatch||"NO CLASSES TODAY",controls)+
-    feedHTML("tsk","Upcoming Tasks",`${tks.length} urgent`,tkCards,
+    feedHTML("tsk","Upcoming Tasks",`${asg.length} due · ${tks.length} urgent`,tkCards,
       noMatch||"NOTHING URGENT — ALL CLEAR")+
     feedHTML("evt","Upcoming Events",`${evs.length} · next 10 days`,evCards,
       noMatch||"NOTHING SCHEDULED")+
