@@ -10,19 +10,37 @@ already sync, because they live in Google Calendar. Nothing else does.
 
 Google Tasks sync for the task rail was built in `7ce4b3c` and is present in `index.html`
 (`tapi`, `ensureList`, `syncGoogleTasks`, `pullTasks`, plus write-through in five `wire()`
-handlers). It has almost certainly never worked: enabling the **Google Tasks API** in the
-Cloud Console was a documented prerequisite that was never done, and every call fails
-silently by design. So the app has been running localStorage-only the whole time.
+handlers). It has almost certainly never worked, for two independent reasons:
 
-Four things still do not follow the user between devices:
+1. Enabling the **Google Tasks API** in the Cloud Console was a documented prerequisite
+   that was never done. Every call returns `403 SERVICE_DISABLED` and fails silently by
+   design.
+2. `auth/tasks` was added to `SCOPE` in that same commit. If the last consent predates it,
+   the cached grant covers Calendar only - and `requestAccessToken({prompt:""})` succeeds
+   anyway, returning a token silently missing the Tasks scope.
 
-1. Task sync itself - blocked on the un-enabled API.
+So the app has been running localStorage-only the whole time.
+
+Three things still do not follow the user between devices:
+
+1. Task sync itself - blocked on both reasons above.
 2. Canvas coursework ticks (`S.doneEv`) - deliberately local, per the old design.
-3. Preferences - categories, per-category colours, calendar visibility, view, collapse state.
-4. Due *times* - `pullTasks()` flattens every due date to `T23:59`, because Google Tasks
+3. Due *times* - `pullTasks()` flattens every due date to `T23:59`, because Google Tasks
    discards the time component.
 
 And there are no reminders of any kind.
+
+## Explicitly out of scope
+
+**Preference sync.** Categories, per-category colours, calendar visibility, view and
+collapse state stay in localStorage, per device. A new device starts from the seed
+defaults. Storing them in Drive `appDataFolder` was designed and then dropped: it was the
+only piece requiring an OAuth scope beyond what is already granted, and the alternative -
+squeezing them into a Google Tasks note - would put a junk list in the Tasks app on the
+phone. Not worth either cost. Revisit only if per-device drift becomes annoying in
+practice.
+
+Consequence: **this design requests no new OAuth scope.** `SCOPE` is unchanged.
 
 ## Constraints
 
@@ -38,9 +56,9 @@ Inherited from `CLAUDE.md` and non-negotiable:
 
 Extract a single `// -- Google sync --` section above `wire()`. Today the write-through
 logic is inline in five `wire()` handlers as five copies of the same try/revert/toast
-shape; this change would add roughly fifteen more. The section holds `dapi()`,
-`taskPush`/`taskDel`, `tickPush`/`tickDel`, `remindUpsert`/`remindDel`, and
-`prefsPull`/`prefsPush`, and each `wire()` handler shrinks to one call.
+shape; this change would add roughly ten more. The section holds `taskPush`/`taskDel`,
+`tickPush`/`tickDel`, and `remindUpsert`/`remindDel`, and each `wire()` handler shrinks to
+one call.
 
 Rejected: keeping it inline (`wire()` grows past 300 lines, retry logic copy-pasted);
 a durable write-behind outbox with offline replay (genuinely more robust on a flaky phone
@@ -59,49 +77,37 @@ Unchanged from the existing code and load-bearing for every section below:
 
 ---
 
-## Section 0 - Prerequisites and scope re-consent
+## Section 0 - Turn the existing sync on
 
-**Manual, in the Google Cloud Console. Blocks every other section.**
+**One manual step, in the Google Cloud Console. Blocks every other section.**
 
-1. APIs & Services -> Library -> enable **Google Tasks API**.
-2. APIs & Services -> Library -> enable **Google Drive API**.
-3. OAuth consent screen -> Scopes -> add `https://www.googleapis.com/auth/drive.appdata`.
-   (`https://www.googleapis.com/auth/tasks` is already listed in `SCOPE`.)
+APIs & Services -> Library -> enable **Google Tasks API**. That is the whole Console
+change. No new scope is requested, so the OAuth consent screen needs no edit.
 
-**In code.** `SCOPE` gains `drive.appdata`. The token is already shared - `api()`, `tapi()`
-and the new `dapi()` all go through the same `ensureToken()` and the same bearer token, so
-there is no second sign-in anywhere in this design.
+**Auth is already shared.** `api()` and `tapi()` go through the same `ensureToken()` and
+the same bearer token. There is one sign-in and this design adds none.
 
-The one real risk is a **cached grant that is missing a scope**. `requestAccessToken({prompt:""})`
-will happily succeed against an older grant and hand back a token covering only what was
-consented to then, so a newly-added scope fails silently. Note this already applies to
-`auth/tasks`, which was added to `SCOPE` in `7ce4b3c`: if the last consent predates that
-commit, the current token has no Tasks scope at all, and that is a second reason the
-existing sync has never worked.
-
-Detect it from the token response itself rather than tracking a version number:
+**Detect a stale grant.** A cached grant predating `7ce4b3c` lacks `auth/tasks` and will
+still satisfy `prompt:""`. Read what Google actually granted from the token response:
 
 ```js
 const NEED = SCOPE.split(" ");
 // in the initTokenClient callback, after r.access_token is confirmed:
 if (!google.accounts.oauth2.hasGrantedAllScopes(r, ...NEED)) {
-  // a scope is missing - re-request interactively, exactly once
-  tokenClient.requestAccessToken({prompt: "consent"});
+  tokenClient.requestAccessToken({prompt: "consent"});   // re-request, once
   return;
 }
 ```
 
-This is self-correcting: consent is forced precisely when a scope is genuinely absent and
-never otherwise, and it stays correct automatically if `SCOPE` changes again later. It
-replaces the `SCOPE_VER` localStorage counter from an earlier draft of this spec, which
-only guessed at what had been granted. Guard against a loop by re-prompting at most once
-per page load.
+Self-correcting: consent is forced precisely when a scope is genuinely absent, never
+otherwise, and stays correct automatically if `SCOPE` ever changes again. Guard against a
+loop by re-prompting at most once per page load.
 
-**Diagnostics readout.** Add `S.svc = {cal:null, tasks:null, drive:null}`, where each value
-is `null` (untried), `true` (last call succeeded) or an error string. Each subsystem sets
-its own flag. Render three monospace pills in the Controls panel - `CAL / TASKS / DRIVE`,
-green on success, red with the message on failure. The whole point is that silent failure
-stops being invisible.
+**Diagnostics readout.** Add `S.svc = {cal:null, tasks:null}`, each value `null` (untried),
+`true` (last call succeeded) or an error string, set by the respective subsystem. Render
+two monospace pills in the Controls panel - `CAL` and `TASKS` - green on success, red with
+the message on failure. The point is that silent failure stops being invisible, which is
+what allowed this to go unnoticed since `7ce4b3c`.
 
 ---
 
@@ -130,56 +136,7 @@ own `due` field:
 
 ---
 
-## Section 2 - Preferences in Drive appDataFolder
-
-A single file `dashboard-prefs.json` in the `appDataFolder` space - invisible in the Drive
-UI, free, no quota concern. `appDataFolder` was rejected in `CLAUDE.md` as a store for
-*tasks*, correctly, because it would remove the phone fallback. That objection does not
-apply to preferences, which nobody edits by hand.
-
-Blob shape:
-
-```json
-{
-  "updatedAt": "2026-08-30T14:03:00.000Z",
-  "prefs": {
-    "vis": {}, "colors": {}, "catColors": {}, "view": "week",
-    "interval": 5, "collapsed": {}, "cats": [], "railHide": false
-  }
-}
-```
-
-That is the object `savePrefs()` already builds, minus `sideHide`.
-
-**API.** Two-step, to avoid hand-building a multipart body:
-
-| Operation | Request |
-|---|---|
-| Find | `GET /drive/v3/files?spaces=appDataFolder&q=name%3D'dashboard-prefs.json'&fields=files(id,modifiedTime)` |
-| Create | `POST /drive/v3/files` body `{name, parents:["appDataFolder"], mimeType:"application/json"}` |
-| Write | `PATCH /upload/drive/v3/files/{id}?uploadType=media` body = the JSON |
-| Read | `GET /drive/v3/files/{id}?alt=media` |
-
-Base `https://www.googleapis.com`. New `dapi()` wrapper mirroring `api()`/`tapi()`,
-including the 401 retry. File id cached in `bd.prefsFile`; re-resolved by name if absent.
-
-**Flow.** `savePrefs()` keeps writing localStorage synchronously and additionally schedules
-a 2-second debounced push. Boot pulls the remote blob and merges **last-write-wins on
-`updatedAt`**: remote newer -> adopt remote and write it to localStorage; otherwise push
-local.
-
-`sideHide` is **omitted from the synced blob**. Today it is written by `savePrefs()` but
-deliberately never restored by `loadLocal()`, so the Controls panel always loads collapsed.
-Leaving it out of the blob entirely keeps that rule true across devices rather than relying
-on the read side to keep ignoring it.
-
-**Accepted limitation.** Whole-blob last-write-wins means two different preference changes
-made on two devices inside the same window will lose one. For a single user with two
-devices this is fine and not worth a field-level merge.
-
----
-
-## Section 3 - Canvas coursework ticks as completed Google Tasks
+## Section 2 - Canvas coursework ticks as completed Google Tasks
 
 Ticking a Canvas coursework card creates a **completed** Google Task, so the tick both
 follows the user across devices and shows as done in the Google Tasks app.
@@ -209,9 +166,12 @@ nothing already ticked is lost. Two read sites need updating for the new shape:
 `evDone()` (truthiness - unaffected, but confirm) and the sort in `doneAssignments()`,
 which currently does `new Date(S.doneEv[evKey(y)])` and must become `.at`.
 
+Note `S.doneEv` keeps its localStorage copy as the offline cache, so a tick still works
+with the network down and reconciles on the next pull.
+
 ---
 
-## Section 4 - Reminders, both paths
+## Section 3 - Reminders, both paths
 
 ### Calendar path - the durable one
 
@@ -270,9 +230,11 @@ convenience on the laptop.
 
 ## Order of work
 
-Section 0 first and alone - until the APIs are enabled and the re-consent lands, none of
-the rest can be verified. Then sections 1, 2, 3, 4 in order; section 3 depends on section
-1's `parseNotes()`, and section 4 depends on nothing but section 0.
+Section 0 first and alone - until the Tasks API is enabled and any stale grant is
+re-consented, none of the rest can be verified, and section 0 is also the point at which
+the *existing* task sync starts working for the first time. Then sections 1, 2, 3 in
+order; section 2 depends on section 1's `parseNotes()`, and section 3 depends on nothing
+but section 0.
 
 ## Verification
 
@@ -280,17 +242,18 @@ There is no test harness, and adding one would break the single-file constraint.
 section carries a manual checklist, run twice: once on the laptop, once in a second browser
 profile standing in for the phone.
 
-- Section 0 - three service pills read green; forced re-consent fires exactly once.
+- Section 0 - both service pills read green; a task added on the laptop appears in the
+  Google Tasks mobile app; forced re-consent fires at most once.
 - Section 1 - a task due 11:59pm survives a pull with its time intact; editing its date in
   the Google Tasks app makes Google's date win on the next pull.
-- Section 2 - a colour changed in profile A appears in profile B after a refresh.
-- Section 3 - a coursework tick in profile A shows ticked in profile B, appears completed
+- Section 2 - a coursework tick in profile A shows ticked in profile B, appears completed
   in the Google Tasks app, and appears exactly once (no duplicate card in the rail).
-- Section 4 - a reminder event lands on Dashboard Reminders and is absent from the Events
+- Section 3 - a reminder event lands on Dashboard Reminders and is absent from the Events
   feed and the grid; completing the task removes it.
 
 ## Files touched
 
 - `index.html` - all implementation.
-- `CLAUDE.md` - corrections: Tasks sync is built, not planned; document the new stores,
-  the scope version, and the reminders calendar exclusion. Stays git-ignored.
+- `CLAUDE.md` - corrections: Tasks sync is built, not planned; document the notes marker
+  format, the `S.doneEv` shape change, the reminders calendar exclusion, and the fact that
+  prefs remain deliberately per-device. Stays git-ignored.
