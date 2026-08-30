@@ -68,18 +68,34 @@ Unchanged from the existing code and load-bearing for every section below:
 3. OAuth consent screen -> Scopes -> add `https://www.googleapis.com/auth/drive.appdata`.
    (`https://www.googleapis.com/auth/tasks` is already listed in `SCOPE`.)
 
-**In code.** `SCOPE` gains `drive.appdata`. Add:
+**In code.** `SCOPE` gains `drive.appdata`. The token is already shared - `api()`, `tapi()`
+and the new `dapi()` all go through the same `ensureToken()` and the same bearer token, so
+there is no second sign-in anywhere in this design.
+
+The one real risk is a **cached grant that is missing a scope**. `requestAccessToken({prompt:""})`
+will happily succeed against an older grant and hand back a token covering only what was
+consented to then, so a newly-added scope fails silently. Note this already applies to
+`auth/tasks`, which was added to `SCOPE` in `7ce4b3c`: if the last consent predates that
+commit, the current token has no Tasks scope at all, and that is a second reason the
+existing sync has never worked.
+
+Detect it from the token response itself rather than tracking a version number:
 
 ```js
-const SCOPE_VER = 2;              // bump whenever SCOPE changes
-// ...and a `scopeVer:"bd.scopeVer"` entry in the existing LS map.
+const NEED = SCOPE.split(" ");
+// in the initTokenClient callback, after r.access_token is confirmed:
+if (!google.accounts.oauth2.hasGrantedAllScopes(r, ...NEED)) {
+  // a scope is missing - re-request interactively, exactly once
+  tokenClient.requestAccessToken({prompt: "consent"});
+  return;
+}
 ```
 
-`initAuth()` compares `localStorage[LS.scopeVer]` against `SCOPE_VER`. On mismatch it must
-force `connect(true)` - an interactive `prompt:"consent"` - and only then store the new
-version. This is not optional: a cached grant satisfies `requestAccessToken({prompt:""})`
-with a token that lacks the new scope, so Drive would fail exactly as silently as Tasks
-has been failing.
+This is self-correcting: consent is forced precisely when a scope is genuinely absent and
+never otherwise, and it stays correct automatically if `SCOPE` changes again later. It
+replaces the `SCOPE_VER` localStorage counter from an earlier draft of this spec, which
+only guessed at what had been granted. Guard against a loop by re-prompting at most once
+per page load.
 
 **Diagnostics readout.** Add `S.svc = {cal:null, tasks:null, drive:null}`, where each value
 is `null` (untried), `true` (last call succeeded) or an error string. Each subsystem sets
