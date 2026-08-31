@@ -693,15 +693,55 @@ async function tickPush(ev){
 function tickDel(rec){
   if(!rec||!rec.taskId||!rec.listId)return Promise.resolve();
   return tapi(taskPath(rec.listId,rec.taskId),{method:"DELETE"})}
+// Reminders live on their own calendar so Google delivers them even with the dashboard
+// closed. The calendar is hidden from every dashboard surface (see loadCals/mapEvents) —
+// otherwise every reminder would surface a second time as an Events card and a grid block.
+const REM_CAL_NAME="Dashboard Reminders";
+let remCal=localStorage.getItem("bd.remCal")||null;
+async function ensureRemCal(){
+  if(remCal)return remCal;
+  const d=await api("/calendars",{method:"POST",
+    body:JSON.stringify({summary:REM_CAL_NAME,timeZone:TZ})});
+  remCal=d.id;localStorage.setItem("bd.remCal",remCal);return remCal}
+// Calendar requires base32hex event ids (a-v, 0-9), 5-1024 chars. Plain hex is a valid
+// subset, so encoding the task id gives a legal, deterministic, collision-free id — which
+// is what makes the upsert idempotent without storing a task->event map anywhere.
+const remId=tid=>"bd"+[...String(tid)].map(c=>c.charCodeAt(0).toString(16).padStart(2,"0")).join("");
+// A dateless ASAP task gets no event: there is nothing to schedule, and a synthetic "9am
+// today" would need recreating every morning and would strand stale events behind it.
+const wantsRem=t=>!t.done&&!!t.due&&(t.tag==="ASAP"||t.tag==="Deadline");
+async function remindUpsert(t){
+  if(!wantsRem(t))return remindDel(t);
+  const cal=await ensureRemCal(),start=new Date(t.due);
+  const body={id:remId(t.id),summary:t.text,description:t.cat,
+    start:{dateTime:start.toISOString(),timeZone:TZ},
+    end:{dateTime:new Date(start.getTime()+15*60000).toISOString(),timeZone:TZ},
+    reminders:{useDefault:false,
+      overrides:[{method:"popup",minutes:0},{method:"popup",minutes:60}]}};
+  try{await api(`/calendars/${encodeURIComponent(cal)}/events`,
+    {method:"POST",body:JSON.stringify(body)})}
+  catch(e){
+    if(e.status!==409)throw e;   // 409 = already there; anything else is a real failure
+    await api(`/calendars/${encodeURIComponent(cal)}/events/${remId(t.id)}`,
+      {method:"PUT",body:JSON.stringify(body)})}}
+async function remindDel(t){
+  if(!remCal)return;
+  try{await api(`/calendars/${encodeURIComponent(remCal)}/events/${remId(t.id)}`,
+    {method:"DELETE"})}catch(e){}}  // already gone is the desired end state
+const remSync=t=>remindUpsert(t).catch(()=>{}); // best-effort at every call site
 
 async function loadCals(){
   const d=await api("/users/me/calendarList?minAccessRole=reader");
-  S.cals=(d.items||[]).map(c=>({id:c.id,name:c.summaryOverride||c.summary,primary:!!c.primary,
+  S.cals=(d.items||[]).filter(c=>{
+    const nm=c.summaryOverride||c.summary;
+    return c.id!==remCal&&nm!==REM_CAL_NAME})   // name check covers a first run before the id is cached
+    .map(c=>({id:c.id,name:c.summaryOverride||c.summary,primary:!!c.primary,
     gcolor:c.backgroundColor||"#8B5CF6"}));
   S.cals.forEach((c,i)=>{if(!(c.id in S.vis))S.vis[c.id]=true;
     if(!S.colors[c.id])S.colors[c.id]=c.gcolor||PALETTE[i%PALETTE.length]});
   savePrefs()}
 function mapEvents(items,calId){
+  if(calId&&calId===remCal)return[];
   const out=[];
   (items||[]).forEach(e=>{if(e.status==="cancelled")return;
     if(OFFICE_HOURS.test(e.summary||""))return;
@@ -822,7 +862,7 @@ function commitTaskEdit(id){
   const val=inp.value.trim(),t=S.tasks.find(x=>x.id===id);
   if(t&&val){
     const old=t.text;t.text=val;S.editTask=null;saveTasks();render();
-    taskPatch(t,{title:val},()=>{t.text=old});
+    taskPatch(t,{title:val},()=>{t.text=old});remSync(t);
     return}
   S.editTask=null;render()}
 function commitCatRename(oldCat){
@@ -847,6 +887,7 @@ function commitDueEdit(id){
     const old=t.due;t.due=inp.value?inp.value+"T23:59":null;S.editDue=null;saveTasks();render();
     taskPatch(t,{due:t.due?new Date(t.due.slice(0,10)+"T00:00:00Z").toISOString():null,
       notes:buildNotes({tag:t.tag,due:t.due,canvas:t.canvas,text:t.notes})},()=>{t.due=old});
+    remSync(t);
     return}
   S.editDue=null;render()}
 
@@ -1295,7 +1336,7 @@ function wire(){
     if(!t)return;
     const old=t.tag;t.tag=TAGS[(TAGS.indexOf(t.tag)+1)%TAGS.length];saveTasks();render();
     taskPatch(t,{notes:buildNotes({tag:t.tag,due:t.due,canvas:t.canvas,text:t.notes})},
-      ()=>{t.tag=old})});
+      ()=>{t.tag=old});remSync(t)});
   $$("[data-evdone]").forEach(b=>b.onclick=e=>{
     e.stopPropagation(); // the card behind it opens the event editor
     const k=b.dataset.evdone,rec=S.doneEv[k];
@@ -1312,11 +1353,12 @@ function wire(){
   $$("[data-tg]").forEach(el=>{const go=()=>{const t=S.tasks.find(x=>x.id===el.dataset.tg);
     if(!t)return;
     const was=t.done;t.done=!t.done;saveTasks();render();if(t.done)toast("Completed · "+t.text);
-    taskPatch(t,{status:t.done?"completed":"needsAction"},()=>{t.done=was})};
+    taskPatch(t,{status:t.done?"completed":"needsAction"},()=>{t.done=was});remSync(t)};
     el.onclick=go;el.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go()}}});
   $$("[data-rm]").forEach(el=>el.onclick=()=>{const t=S.tasks.find(x=>x.id===el.dataset.rm);
     if(!t)return;
     S.tasks=S.tasks.filter(x=>x.id!==el.dataset.rm);saveTasks();render();toast("Removed · "+t.text);
+    remindDel(t).catch(()=>{});
     taskDel(t,()=>{S.tasks.push(t)})});
   $$("[data-add]").forEach(b=>{const cat=b.dataset.add;
     const add=()=>{const i=document.querySelector(`[data-in="${CSS.escape(cat)}"]`),
@@ -1326,7 +1368,7 @@ function wire(){
       S.tasks.push(t);saveTasks();render();
       toast("Added to "+cat);
       const n=document.querySelector(`[data-in="${CSS.escape(cat)}"]`);if(n)n.focus();
-      taskPush(t).catch(()=>{})}; // stays local-only; picked up on the next successful sync
+      taskPush(t).then(()=>remSync(t)).catch(()=>{})}; // needs Google's id for remId()
     b.onclick=add;
     document.querySelector(`[data-in="${CSS.escape(cat)}"]`).onkeydown=e=>{if(e.key==="Enter")add()}});
   const nc=$("#newcat");if(nc)nc.onkeydown=e=>{if(e.key==="Enter"){const v=nc.value.trim();
