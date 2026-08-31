@@ -605,7 +605,17 @@ function buildNotes(o){
   if(o.canvas)h.push("[canvas:"+o.canvas+"]");
   if(o.text)h.push("",o.text);
   return h.join("\n")}
+// Re-entrancy guard. boot() and refresh() both call this, and refresh() also fires on tab
+// focus and the poll timer — so two runs can overlap. That is not merely wasteful: on the
+// very first successful sync both would pass the !tasksSynced check before either set it,
+// and every seed task would be pushed to Google twice. Which is exactly what happened the
+// first time the Tasks API was enabled.
+let syncing=false;
 async function syncGoogleTasks(){
+  if(syncing)return;
+  syncing=true;
+  try{await syncGoogleTasksInner()}finally{syncing=false}}
+async function syncGoogleTasksInner(){
   loadListMap();
   try{await tapi("/users/@me/lists")}catch(e){return} // Tasks API/scope not available — stay local-only
   try{for(const cat of S.cats)if(!listMap[cat])await ensureList(cat)}
