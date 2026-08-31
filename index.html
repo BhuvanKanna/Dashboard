@@ -575,7 +575,33 @@ async function ensureList(cat){
   if(listMap[cat])return listMap[cat];
   const d=await tapi("/users/@me/lists",{method:"POST",body:JSON.stringify({title:cat})});
   listMap[cat]=d.id;saveListMap();return d.id}
-function parseTag(notes){const m=/^\[(ASAP|Deadline|General)\]/.exec(notes||"");return m?m[1]:"General"}
+// Notes carry a small machine header, then the user's own text:
+//   [Deadline]
+//   [due:2026-09-03T23:59]
+//   [canvas:calId|eventId]
+//   free text
+// The due marker exists because Google Tasks keeps only a DATE in its own `due` field and
+// discards the time, so the real timestamp has nowhere else to live. Markers must be
+// contiguous at the top; the first non-marker line begins the user's text.
+function parseNotes(notes){
+  const out={tag:"General",due:null,canvas:null,text:""};
+  const lines=String(notes||"").split("\n");
+  let i=0;
+  for(;i<lines.length;i++){
+    const s=lines[i].trim();
+    let m;
+    if(m=/^\[(ASAP|Deadline|General)\]$/.exec(s)){out.tag=m[1];continue}
+    if(m=/^\[due:([\d\-T:]+)\]$/.exec(s)){out.due=m[1];continue}
+    if(m=/^\[canvas:(.+)\]$/.exec(s)){out.canvas=m[1];continue}
+    break}
+  out.text=lines.slice(i).join("\n").trim();
+  return out}
+function buildNotes(o){
+  const h=["["+(o.tag||"General")+"]"];
+  if(o.due)h.push("[due:"+o.due+"]");
+  if(o.canvas)h.push("[canvas:"+o.canvas+"]");
+  if(o.text)h.push("",o.text);
+  return h.join("\n")}
 async function syncGoogleTasks(){
   loadListMap();
   try{await tapi("/users/@me/lists")}catch(e){return} // Tasks API/scope not available — stay local-only
@@ -595,8 +621,14 @@ async function pullTasks(){
     for(const cat of S.cats){
       const listId=listMap[cat];if(!listId)continue;
       const d=await tapi(`/lists/${encodeURIComponent(listId)}/tasks?showCompleted=true&showHidden=true&maxResults=100`);
-      (d.items||[]).forEach(it=>pulled.push({id:it.id,cat,text:it.title||"(untitled)",tag:parseTag(it.notes),
-        due:it.due?it.due.slice(0,10)+"T23:59":null,done:it.status==="completed"}))}
+      (d.items||[]).forEach(it=>{
+        const n=parseNotes(it.notes),gdate=it.due?it.due.slice(0,10):null;
+        // Google wins on any disagreement — a mismatch means the date was edited in the
+        // Google Tasks app, which is the only place that can change it behind our back.
+        // The marker only survives when it agrees, and then it contributes the time.
+        const due=(n.due&&gdate&&n.due.slice(0,10)===gdate)?n.due:(gdate?gdate+"T23:59":null);
+        pulled.push({id:it.id,cat,text:it.title||"(untitled)",tag:n.tag,due,
+          notes:n.text,canvas:n.canvas,done:it.status==="completed"})})}
     const pulledIds=new Set(pulled.map(t=>t.id));
     // Never silently drop a task Google hasn't confirmed yet — keep anything added in the last
     // 2 minutes (its write-through push may still be in flight) or anything with no list yet.
@@ -612,7 +644,8 @@ const listPath=id=>`/lists/${encodeURIComponent(id)}`;
 const taskPath=(lid,tid)=>`${listPath(lid)}/tasks/${encodeURIComponent(tid)}`;
 // Google Tasks keeps only a DATE in `due` and discards the time component.
 function taskBody(t){
-  const b={title:t.text,notes:"["+t.tag+"]",status:t.done?"completed":"needsAction"};
+  const b={title:t.text,notes:buildNotes({tag:t.tag,due:t.due,canvas:t.canvas,text:t.notes}),
+    status:t.done?"completed":"needsAction"};
   if(t.due)b.due=new Date(t.due.slice(0,10)+"T00:00:00Z").toISOString();
   return b}
 function taskPatch(t,body,undo){
@@ -781,8 +814,8 @@ function commitDueEdit(id){
   const t=S.tasks.find(x=>x.id===id);
   if(t){
     const old=t.due;t.due=inp.value?inp.value+"T23:59":null;S.editDue=null;saveTasks();render();
-    taskPatch(t,{due:t.due?new Date(t.due.slice(0,10)+"T00:00:00Z").toISOString():null},
-      ()=>{t.due=old});
+    taskPatch(t,{due:t.due?new Date(t.due.slice(0,10)+"T00:00:00Z").toISOString():null,
+      notes:buildNotes({tag:t.tag,due:t.due,canvas:t.canvas,text:t.notes})},()=>{t.due=old});
     return}
   S.editDue=null;render()}
 
@@ -1230,7 +1263,8 @@ function wire(){
     const t=S.tasks.find(x=>x.id===el.dataset.tagcycle);
     if(!t)return;
     const old=t.tag;t.tag=TAGS[(TAGS.indexOf(t.tag)+1)%TAGS.length];saveTasks();render();
-    taskPatch(t,{notes:"["+t.tag+"]"},()=>{t.tag=old})});
+    taskPatch(t,{notes:buildNotes({tag:t.tag,due:t.due,canvas:t.canvas,text:t.notes})},
+      ()=>{t.tag=old})});
   $$("[data-evdone]").forEach(b=>b.onclick=e=>{
     e.stopPropagation(); // the card behind it opens the event editor
     const k=b.dataset.evdone,was=S.doneEv[k];
