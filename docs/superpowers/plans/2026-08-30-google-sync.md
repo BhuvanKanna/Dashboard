@@ -128,13 +128,13 @@ Then in the `initTokenClient` callback, insert this as the first statement *afte
         return}                                  // `pending` stays set; the retry resolves it
 ```
 
-- [ ] **Step 6: Verify the readout works and confirm the diagnosis**
+- [x] **Step 6: Verify the readout works and confirm the diagnosis**
 
 Hard-refresh the dashboard **with the Tasks API still disabled** and open Controls.
 
 Expected: `CAL·IO` reads `OK` in green. `TSK·IO` reads red with a message containing `disabled` or `has not been used` — this is the `403 SERVICE_DISABLED` that has been silently breaking task sync all along. Seeing it is the point of this task.
 
-- [ ] **Step 7: Enable the Tasks API and confirm it goes green**
+- [x] **Step 7: Enable the Tasks API and confirm it goes green**
 
 **Manual, Google Cloud Console:** APIs & Services → Library → search "Google Tasks API" → **Enable**. Same project as the OAuth client. No consent-screen edit is needed; no new scope is requested.
 
@@ -650,7 +650,7 @@ In the add (`data-add`) handler, replace `taskPush(t).catch(()=>{});` with:
 
 Note the ordering: `remId()` is derived from the task id, and `taskPush` rewrites `t.id` from the local `uid()` to Google's. Calling `remSync` first would key the reminder to an id that is about to be discarded.
 
-- [ ] **Step 5: Verify reminders land and stay hidden**
+- [x] **Step 5: Verify reminders land and stay hidden**
 
 1. Add a task tagged `Deadline` with a due date an hour or two out.
 2. Open Google Calendar. Expected: a **Dashboard Reminders** calendar exists with a 15-minute event at the due time.
