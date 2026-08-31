@@ -580,7 +580,23 @@ function toast(m,err){const el=document.getElementById("toast");if(!el)return;
 let listMap={};
 function loadListMap(){try{listMap=JSON.parse(localStorage.getItem(LS.listMap)||"{}")}catch(e){listMap={}}}
 function saveListMap(){localStorage.setItem(LS.listMap,JSON.stringify(listMap))}
+// listMap is per-device localStorage. Adopting the lists Google already has, before ever
+// creating one, is what stops each new device from building a parallel universe of lists —
+// which is exactly what happened: 86 lists, ~10 duplicate sets of every category.
+// Only titles we own are adopted; the user's own lists (My Tasks, School, ...) stay out of
+// listMap, because pullTasks walks listMap and would otherwise drag them into the rail.
+let listsFetched=false;
+async function refreshListMap(){
+  const d=await tapi("/users/@me/lists");
+  const seen={};
+  (d.items||[]).forEach(l=>{if(!(l.title in seen))seen[l.title]=l.id});
+  Object.keys(seen).forEach(t=>{
+    if(!listMap[t]&&(S.cats.includes(t)||t==="Coursework"))listMap[t]=seen[t]});
+  saveListMap();listsFetched=true;
+  return d}
 async function ensureList(cat){
+  if(listMap[cat])return listMap[cat];
+  if(!listsFetched)await refreshListMap();   // adopt an existing list before making a new one
   if(listMap[cat])return listMap[cat];
   const d=await tapi("/users/@me/lists",{method:"POST",body:JSON.stringify({title:cat})});
   listMap[cat]=d.id;saveListMap();return d.id}
@@ -623,14 +639,24 @@ async function syncGoogleTasks(){
   try{await syncGoogleTasksInner()}finally{syncing=false}}
 async function syncGoogleTasksInner(){
   loadListMap();
-  try{await tapi("/users/@me/lists")}catch(e){return} // Tasks API/scope not available — stay local-only
+  // Doubles as the reachability probe: if the API or scope is missing this throws and we
+  // stay local-only, exactly as before.
+  try{await refreshListMap()}catch(e){return}
   try{for(const cat of S.cats)if(!listMap[cat])await ensureList(cat)}
   catch(e){console.warn("Tasks list setup failed:",e.message)}
   if(!localStorage.getItem(LS.tasksSynced)){
+    // First run on THIS device. Google is the source of truth, not the hardcoded seed: pull
+    // first and only migrate if the account genuinely has nothing. Pushing blind re-created
+    // SEED_TASKS — every one of them done:false — as incomplete duplicates of work already
+    // finished on another device, which is what made completed ACC tasks come back unticked.
     try{
-      for(const t of S.tasks){
-        if(t.id.length<20){ // still a local uid(), not yet pushed to Google
-          await taskPush(t)}}
+      const local=S.tasks.slice();
+      await pullTasks();
+      if(!S.tasks.length){
+        S.tasks=local;
+        for(const t of S.tasks){
+          if(t.id.length<20){ // still a local uid(), not yet pushed to Google
+            await taskPush(t)}}}
       localStorage.setItem(LS.tasksSynced,"1");saveTasks()}
     catch(e){console.warn("Task migration incomplete, will retry next sync:",e.message);return}}
   await pullTasks()}
