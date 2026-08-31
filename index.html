@@ -588,10 +588,21 @@ function saveListMap(){localStorage.setItem(LS.listMap,JSON.stringify(listMap))}
 let listsFetched=false;
 async function refreshListMap(){
   const d=await tapi("/users/@me/lists");
-  const seen={};
-  (d.items||[]).forEach(l=>{if(!(l.title in seen))seen[l.title]=l.id});
-  Object.keys(seen).forEach(t=>{
-    if(!listMap[t]&&(S.cats.includes(t)||t==="Coursework"))listMap[t]=seen[t]});
+  const mine=(d.items||[]).filter(l=>S.cats.includes(l.title)||l.title==="Coursework");
+  const need=[...new Set(mine.map(l=>l.title))].filter(t=>!listMap[t]);
+  for(const t of need){
+    const cands=mine.filter(l=>l.title===t);
+    let best=cands[0];
+    if(cands.length>1){
+      // Duplicate titles exist from before lists were adopted rather than created. Pick the
+      // one that actually holds tasks: latching onto an empty twin is what brings a device
+      // up with a blank rail and then re-seeds over the top of real data.
+      let bestN=-1;
+      for(const c of cands){
+        try{const r=await tapi(`${listPath(c.id)}/tasks?showCompleted=true&showHidden=true&maxResults=100`);
+          const n=(r.items||[]).length;if(n>bestN){bestN=n;best=c}}catch(e){}}
+    }
+    listMap[t]=best.id}
   saveListMap();listsFetched=true;
   return d}
 async function ensureList(cat){
