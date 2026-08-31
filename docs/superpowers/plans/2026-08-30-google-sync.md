@@ -43,7 +43,7 @@ Must be first. Everything else in this plan is invisible-on-failure by design, a
 - Consumes: nothing.
 - Produces: `S.svc` — `{cal: null|true|string, tasks: null|true|string}`. `null` = untried, `true` = last call succeeded, string = last error message. Also: `api()` and `tapi()` now throw an `Error` carrying a numeric `.status` property, which Task 5 relies on to distinguish `409 Conflict`.
 
-- [ ] **Step 1: Add the `good` readout style**
+- [x] **Step 1: Add the `good` readout style**
 
 In the CSS, immediately after the existing `.readout div.hot b` rule (~line 129):
 
@@ -51,7 +51,7 @@ In the CSS, immediately after the existing `.readout div.hot b` rule (~line 129)
 .readout div.good b{color:var(--ok)}
 ```
 
-- [ ] **Step 2: Add `svc` to the state object**
+- [x] **Step 2: Add `svc` to the state object**
 
 In the `let S={...}` literal, alongside `doneEv:{},showDone:false`:
 
@@ -62,7 +62,7 @@ In the `let S={...}` literal, alongside `doneEv:{},showDone:false`:
   svc:{cal:null,tasks:null},
 ```
 
-- [ ] **Step 3: Record health and expose the status code in `api()` and `tapi()`**
+- [x] **Step 3: Record health and expose the status code in `api()` and `tapi()`**
 
 Replace both functions. The only changes are the two `S.svc` writes and `e.status`:
 
@@ -87,7 +87,7 @@ async function tapi(path,opts={}){
   return r.status===204?null:r.json()}
 ```
 
-- [ ] **Step 4: Render the two service rows**
+- [x] **Step 4: Render the two service rows**
 
 Replace `readout()`. Note the labels are `CAL·IO` / `TSK·IO`, not `CAL` / `TASKS` — those two labels are already taken by the calendar count and the open-task count in the same block:
 
@@ -106,7 +106,7 @@ function svcRow(lbl,v){
   return `<div class="${cls}"><span>${lbl}</span><b>${esc(txt)}</b></div>`}
 ```
 
-- [ ] **Step 5: Detect a grant that is missing a scope**
+- [x] **Step 5: Detect a grant that is missing a scope**
 
 `auth/tasks` was added to `SCOPE` in `7ce4b3c`. A consent granted before that commit still satisfies `requestAccessToken({prompt:""})` and returns a token with no Tasks scope at all. Read what Google actually granted.
 
@@ -142,7 +142,7 @@ Wait ~1 minute for propagation, then hard-refresh the dashboard.
 
 Expected: a Google consent screen may appear once (the stale-grant path from Step 5) — accept it. Then `TSK·IO` reads `OK` in green, and your existing four seed tasks appear in the Google Tasks app on your phone under lists named after their categories. **This is the moment task sync starts working for the first time.**
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add index.html
@@ -174,7 +174,7 @@ Pure refactor, no behaviour change. The same try/revert/toast shape is currently
   - `taskPush(t) -> Promise` — POST a new task, rewrites `t.id` to Google's id
   - `taskDel(t, undo)` — fire-and-forget DELETE
 
-- [ ] **Step 1: Add the sync layer**
+- [x] **Step 1: Add the sync layer**
 
 Insert immediately after `pullTasks()`, before `async function loadCals()`:
 
@@ -206,7 +206,7 @@ function taskDel(t,undo){
     .catch(e=>{undo();saveTasks();render();toast("Sync failed, restored: "+e.message,true)})}
 ```
 
-- [ ] **Step 2: Route the migration loop through `taskPush`**
+- [x] **Step 2: Route the migration loop through `taskPush`**
 
 In `syncGoogleTasks()`, replace the body of the `if(t.id.length<20){...}` block with:
 
@@ -215,7 +215,7 @@ In `syncGoogleTasks()`, replace the body of the `if(t.id.length<20){...}` block 
           await taskPush(t)}
 ```
 
-- [ ] **Step 3: Route `commitTaskEdit` through `taskPatch`**
+- [x] **Step 3: Route `commitTaskEdit` through `taskPatch`**
 
 Replace the `const listId=listMap[t.cat]; if(listId)tapi(...)` block inside `commitTaskEdit()` with:
 
@@ -223,7 +223,7 @@ Replace the `const listId=listMap[t.cat]; if(listId)tapi(...)` block inside `com
     taskPatch(t,{title:val},()=>{t.text=old});
 ```
 
-- [ ] **Step 4: Route `commitDueEdit` through `taskPatch`**
+- [x] **Step 4: Route `commitDueEdit` through `taskPatch`**
 
 Replace the `const listId=listMap[t.cat]; if(listId){...}` block inside `commitDueEdit()` with:
 
@@ -232,7 +232,7 @@ Replace the `const listId=listMap[t.cat]; if(listId){...}` block inside `commitD
       ()=>{t.due=old});
 ```
 
-- [ ] **Step 5: Route the four `wire()` handlers through the layer**
+- [x] **Step 5: Route the four `wire()` handlers through the layer**
 
 Tag cycle — replace its `const listId=...; if(listId)tapi(...)` tail with:
 
@@ -264,7 +264,7 @@ Hard-refresh. In the Tasks rail: add a task, rename it, change its tag, set a du
 
 Expected: each action behaves exactly as before, `TSK·IO` stays green throughout, and each change appears in the Google Tasks phone app within a few seconds.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add index.html
@@ -291,7 +291,7 @@ Google Tasks stores a date and throws the time away, so an 11:59pm deadline curr
   - `buildNotes({tag, due, canvas, text}) -> string`
   - Task 4 depends on the `canvas` field of both.
 
-- [ ] **Step 1: Replace `parseTag` with `parseNotes` and `buildNotes`**
+- [x] **Step 1: Replace `parseTag` with `parseNotes` and `buildNotes`**
 
 Delete the `parseTag` function and put this in its place:
 
@@ -325,7 +325,7 @@ function buildNotes(o){
   return h.join("\n")}
 ```
 
-- [ ] **Step 2: Verify the pure functions in DevTools**
+- [x] **Step 2: Verify the pure functions in DevTools**
 
 Hard-refresh, open the console, paste:
 
@@ -349,7 +349,7 @@ Hard-refresh, open the console, paste:
 
 Expected: `parseNotes/buildNotes OK` and no red assertion failures.
 
-- [ ] **Step 3: Emit the marker on every write**
+- [x] **Step 3: Emit the marker on every write**
 
 In `taskBody()`, replace the `notes` field:
 
@@ -358,7 +358,7 @@ In `taskBody()`, replace the `notes` field:
     status:t.done?"completed":"needsAction"};
 ```
 
-- [ ] **Step 4: Stop the tag cycle and due edit from wiping the marker**
+- [x] **Step 4: Stop the tag cycle and due edit from wiping the marker**
 
 Both currently PATCH a narrow field set. `notes` holds the tag *and* the due marker now, so a partial write destroys the other one. Both must send the whole rebuilt `notes`.
 
@@ -376,7 +376,7 @@ In `commitDueEdit()`, replace the `taskPatch` line from Task 2 Step 4 with:
       notes:buildNotes({tag:t.tag,due:t.due,canvas:t.canvas,text:t.notes})},()=>{t.due=old});
 ```
 
-- [ ] **Step 5: Apply the conflict rule on pull**
+- [x] **Step 5: Apply the conflict rule on pull**
 
 In `pullTasks()`, replace the `(d.items||[]).forEach(...)` call with:
 
@@ -398,7 +398,7 @@ In `pullTasks()`, replace the `(d.items||[]).forEach(...)` call with:
 3. In the Google Tasks phone app, change that task's date to tomorrow.
 4. Back in the dashboard, hard-refresh. Expected: the rail shows tomorrow at `11:59p` — Google's date won.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add index.html
@@ -427,7 +427,7 @@ Ticking a coursework card currently writes only to `localStorage`, so a quiz tic
   - `tickDel(rec) -> Promise` — takes the *record*, not the key, because the caller deletes the entry first
   - `S.doneEv[key]` changes shape from an ISO string to `{at, taskId, listId}`
 
-- [ ] **Step 1: Migrate the `doneEv` shape on load**
+- [x] **Step 1: Migrate the `doneEv` shape on load**
 
 `S.doneEv[key]` becomes an object. Legacy string values must be coerced so nothing already ticked is lost. In `loadLocal()`, replace the `try{S.doneEv=JSON.parse(...)}catch(e){S.doneEv={}}` line with:
 
@@ -438,7 +438,7 @@ Ticking a coursework card currently writes only to `localStorage`, so a quiz tic
   catch(e){S.doneEv={}}
 ```
 
-- [ ] **Step 2: Fix the completed-fold sort for the new shape**
+- [x] **Step 2: Fix the completed-fold sort for the new shape**
 
 In `doneAssignments()`, the sort reads the value as a date directly. Replace it with:
 
@@ -448,7 +448,7 @@ In `doneAssignments()`, the sort reads the value as a date directly. Replace it 
 
 `evDone()` only tests truthiness and needs no change — confirm this by reading it.
 
-- [ ] **Step 3: Add the tick functions to the sync layer**
+- [x] **Step 3: Add the tick functions to the sync layer**
 
 Append to the `// ── Google sync ──` section:
 
@@ -475,7 +475,7 @@ function tickDel(rec){
   return tapi(taskPath(rec.listId,rec.taskId),{method:"DELETE"})}
 ```
 
-- [ ] **Step 4: Divert marked tasks out of the rail and into `doneEv`**
+- [x] **Step 4: Divert marked tasks out of the rail and into `doneEv`**
 
 In `pullTasks()`, declare `const remoteTicks={};` next to `const pulled=[];`, then change the `forEach` body from Task 3 Step 5 so the marker is intercepted before anything is pushed:
 
@@ -500,7 +500,7 @@ Then, immediately before `S.tasks=[...pulled,...keep];`, reconcile ticks:
     Object.assign(S.doneEv,remoteTicks);saveDone();
 ```
 
-- [ ] **Step 5: Push the tick from the handler**
+- [x] **Step 5: Push the tick from the handler**
 
 Replace the whole `$$("[data-evdone]")` handler with:
 
@@ -526,7 +526,7 @@ Replace the whole `$$("[data-evdone]")` handler with:
 4. In profile B, hard-refresh. Expected: the same item shows as ticked.
 5. Untick it in profile B, then hard-refresh profile A. Expected: it is back in the Tasks feed.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add index.html
@@ -550,7 +550,7 @@ The durable path — Google's own infrastructure delivers these, so the phone bu
 - Consumes: `api()` and its `.status` property (Task 1), `taskPush` (Task 2), `TZ`.
 - Produces: `remId(taskId) -> string`, `wantsRem(t) -> boolean`, `ensureRemCal() -> Promise<string>`, `remindUpsert(t) -> Promise`, `remindDel(t) -> Promise`, and the module-level `remCal` id.
 
-- [ ] **Step 1: Add the reminder functions to the sync layer**
+- [x] **Step 1: Add the reminder functions to the sync layer**
 
 Append to the `// ── Google sync ──` section:
 
@@ -593,7 +593,7 @@ async function remindDel(t){
 const remSync=t=>remindUpsert(t).catch(()=>{}); // best-effort at every call site
 ```
 
-- [ ] **Step 2: Verify `remId` produces a legal Calendar id**
+- [x] **Step 2: Verify `remId` produces a legal Calendar id**
 
 Hard-refresh, then in the console:
 
@@ -609,7 +609,7 @@ Hard-refresh, then in the console:
 
 Expected: `remId OK -> ...` with no failures.
 
-- [ ] **Step 3: Hide the reminders calendar from every surface**
+- [x] **Step 3: Hide the reminders calendar from every surface**
 
 In `loadCals()`, replace the `S.cals=(d.items||[]).map(...)` assignment with a filtered version. Filtering here also stops `loadEvents()` from ever fetching it:
 
@@ -627,7 +627,7 @@ And in `mapEvents()`, as belt-and-braces if the calendar is ever renamed, add as
   if(calId&&calId===remCal)return[];
 ```
 
-- [ ] **Step 4: Hook the lifecycle**
+- [x] **Step 4: Hook the lifecycle**
 
 Add `remSync(t)` after the existing sync call in each of these, so a reminder tracks its task:
 
@@ -658,7 +658,7 @@ Note the ordering: `remId()` is derived from the task id, and `taskPush` rewrite
 4. Change the task's due date. Expected: the event moves rather than a second one appearing.
 5. Tick the task complete. Expected: the event disappears from Google Calendar.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add index.html
@@ -684,7 +684,7 @@ The same-session convenience on the laptop. On iOS this only fires for an instal
 - Consumes: `urgentTasks()`, `upcomingAssignments()`, `evKey`, `splitCourse`, `iso` — all existing.
 - Produces: `notifCheck()`, run on a 60-second interval.
 
-- [ ] **Step 1: Add the notified-key store to `LS`**
+- [x] **Step 1: Add the notified-key store to `LS`**
 
 Add to the `LS` object literal:
 
@@ -692,7 +692,7 @@ Add to the `LS` object literal:
   notified:"bd.notified",
 ```
 
-- [ ] **Step 2: Add the check**
+- [x] **Step 2: Add the check**
 
 Insert immediately before `function loadWeather(){`:
 
@@ -719,7 +719,7 @@ function notifCheck(){
   localStorage.setItem(LS.notified,JSON.stringify({date:today,keys:[...fired]}))}
 ```
 
-- [ ] **Step 3: Add the permission button**
+- [x] **Step 3: Add the permission button**
 
 Permission must come from a click — Chrome penalises unprompted requests. In `render()`, inside the `syscol` div, immediately after the `</select>` and before `${readout()}`:
 
@@ -731,7 +731,7 @@ Permission must come from a click — Chrome penalises unprompted requests. In `
               :"Enable notifications"}</button>`:""}
 ```
 
-- [ ] **Step 4: Wire the button and start the timer**
+- [x] **Step 4: Wire the button and start the timer**
 
 In `wire()`, alongside the other `syscol` handlers:
 
@@ -753,7 +753,7 @@ setInterval(notifCheck,60000);
 3. Within 60 seconds. Expected: a desktop notification titled `Due soon · <category>`.
 4. Hard-refresh and wait another 60 seconds. Expected: **no** repeat notification for the same task.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add index.html
@@ -772,7 +772,7 @@ Fired keys are kept for the day so a refresh does not re-buzz."
 **Files:**
 - Modify: `CLAUDE.md` (git-ignored — **do not** `git add` it)
 
-- [ ] **Step 1: Replace the "planned, not yet built" section**
+- [x] **Step 1: Replace the "planned, not yet built" section**
 
 Retitle `## Google Tasks sync — planned, not yet built` to `## Google sync` and rewrite its body to record what now exists:
 
@@ -783,16 +783,16 @@ Retitle `## Google Tasks sync — planned, not yet built` to `## Google sync` an
 - Reminders live on a **Dashboard Reminders** calendar, hidden in both `loadCals()` and `mapEvents()`. Event ids are hex-encoded task ids so the upsert is idempotent with no stored map.
 - **Prefs are deliberately NOT synced.** Categories, colours, calendar visibility, view and collapse state stay per-device. Drive `appDataFolder` was designed and dropped — it was the only piece needing an OAuth scope beyond what is already granted. See the spec's "Explicitly out of scope".
 
-- [ ] **Step 2: Update the two now-wrong notes elsewhere in the file**
+- [x] **Step 2: Update the two now-wrong notes elsewhere in the file**
 
 - Under **Completion**, `S.doneEv` is described as "deliberately not synced anywhere — it is local to whichever device ticked it". That is no longer true; replace it with the Task 4 behaviour.
 - Under **Still on the list**, delete the "Google Tasks sync (spec above) — highest priority" bullet. Leave the command-box bullet.
 
-- [ ] **Step 3: Add the prerequisite note**
+- [x] **Step 3: Add the prerequisite note**
 
 Under **Auth notes**, record that the **Google Tasks API must be enabled** in the Cloud Console, that this was the original silent failure, and that the `CAL·IO` / `TSK·IO` rows in the Controls readout are how to check it at a glance.
 
-- [ ] **Step 4: Verify nothing personal is staged**
+- [x] **Step 4: Verify nothing personal is staged**
 
 ```bash
 git status --short
