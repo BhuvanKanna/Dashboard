@@ -585,11 +585,7 @@ async function syncGoogleTasks(){
     try{
       for(const t of S.tasks){
         if(t.id.length<20){ // still a local uid(), not yet pushed to Google
-          const listId=listMap[t.cat]||await ensureList(t.cat);
-          const body={title:t.text,notes:"["+t.tag+"]",status:t.done?"completed":"needsAction"};
-          if(t.due)body.due=new Date(t.due.slice(0,10)+"T00:00:00Z").toISOString();
-          const d=await tapi(`/lists/${encodeURIComponent(listId)}/tasks`,{method:"POST",body:JSON.stringify(body)});
-          t.id=d.id}}
+          await taskPush(t)}}
       localStorage.setItem(LS.tasksSynced,"1");saveTasks()}
     catch(e){console.warn("Task migration incomplete, will retry next sync:",e.message);return}}
   await pullTasks()}
@@ -607,6 +603,32 @@ async function pullTasks(){
     const keep=S.tasks.filter(t=>!pulledIds.has(t.id)&&(!listMap[t.cat]||Date.now()-(t._addedAt||0)<120000));
     S.tasks=[...pulled,...keep];saveTasks();render()}
   catch(e){console.warn("Tasks pull failed, keeping local copy:",e.message)}}
+
+// ── Google sync ───────────────────────────────────────────────────────────────
+// Every function here is best-effort and fire-and-forget. The local write has already
+// happened and rendered by the time these are called; a failure calls the supplied undo(),
+// re-renders and toasts. Nothing here may block the UI or drop local data.
+const listPath=id=>`/lists/${encodeURIComponent(id)}`;
+const taskPath=(lid,tid)=>`${listPath(lid)}/tasks/${encodeURIComponent(tid)}`;
+// Google Tasks keeps only a DATE in `due` and discards the time component.
+function taskBody(t){
+  const b={title:t.text,notes:"["+t.tag+"]",status:t.done?"completed":"needsAction"};
+  if(t.due)b.due=new Date(t.due.slice(0,10)+"T00:00:00Z").toISOString();
+  return b}
+function taskPatch(t,body,undo){
+  const listId=listMap[t.cat];
+  if(!listId)return;                       // not pushed to Google yet — local-only is fine
+  tapi(taskPath(listId,t.id),{method:"PATCH",body:JSON.stringify(body)})
+    .catch(e=>{undo();saveTasks();render();toast("Sync failed: "+e.message,true)})}
+async function taskPush(t){
+  const listId=listMap[t.cat]||await ensureList(t.cat);
+  const d=await tapi(`${listPath(listId)}/tasks`,{method:"POST",body:JSON.stringify(taskBody(t))});
+  t.id=d.id;saveTasks();return d}
+function taskDel(t,undo){
+  const listId=listMap[t.cat];
+  if(!listId)return;
+  tapi(taskPath(listId,t.id),{method:"DELETE"})
+    .catch(e=>{undo();saveTasks();render();toast("Sync failed, restored: "+e.message,true)})}
 
 async function loadCals(){
   const d=await api("/users/me/calendarList?minAccessRole=reader");
@@ -736,10 +758,7 @@ function commitTaskEdit(id){
   const val=inp.value.trim(),t=S.tasks.find(x=>x.id===id);
   if(t&&val){
     const old=t.text;t.text=val;S.editTask=null;saveTasks();render();
-    const listId=listMap[t.cat];
-    if(listId)tapi(`/lists/${encodeURIComponent(listId)}/tasks/${encodeURIComponent(t.id)}`,
-      {method:"PATCH",body:JSON.stringify({title:val})})
-      .catch(e=>{t.text=old;saveTasks();render();toast("Sync failed: "+e.message,true)});
+    taskPatch(t,{title:val},()=>{t.text=old});
     return}
   S.editTask=null;render()}
 function commitCatRename(oldCat){
@@ -762,11 +781,8 @@ function commitDueEdit(id){
   const t=S.tasks.find(x=>x.id===id);
   if(t){
     const old=t.due;t.due=inp.value?inp.value+"T23:59":null;S.editDue=null;saveTasks();render();
-    const listId=listMap[t.cat];
-    if(listId){
-      const body={due:t.due?new Date(t.due.slice(0,10)+"T00:00:00Z").toISOString():null};
-      tapi(`/lists/${encodeURIComponent(listId)}/tasks/${encodeURIComponent(t.id)}`,{method:"PATCH",body:JSON.stringify(body)})
-        .catch(e=>{t.due=old;saveTasks();render();toast("Sync failed: "+e.message,true)})}
+    taskPatch(t,{due:t.due?new Date(t.due.slice(0,10)+"T00:00:00Z").toISOString():null},
+      ()=>{t.due=old});
     return}
   S.editDue=null;render()}
 
@@ -1214,10 +1230,7 @@ function wire(){
     const t=S.tasks.find(x=>x.id===el.dataset.tagcycle);
     if(!t)return;
     const old=t.tag;t.tag=TAGS[(TAGS.indexOf(t.tag)+1)%TAGS.length];saveTasks();render();
-    const listId=listMap[t.cat];
-    if(listId)tapi(`/lists/${encodeURIComponent(listId)}/tasks/${encodeURIComponent(t.id)}`,
-      {method:"PATCH",body:JSON.stringify({notes:"["+t.tag+"]"})})
-      .catch(err=>{t.tag=old;saveTasks();render();toast("Sync failed: "+err.message,true)})});
+    taskPatch(t,{notes:"["+t.tag+"]"},()=>{t.tag=old})});
   $$("[data-evdone]").forEach(b=>b.onclick=e=>{
     e.stopPropagation(); // the card behind it opens the event editor
     const k=b.dataset.evdone,was=S.doneEv[k];
@@ -1229,17 +1242,12 @@ function wire(){
   $$("[data-tg]").forEach(el=>{const go=()=>{const t=S.tasks.find(x=>x.id===el.dataset.tg);
     if(!t)return;
     const was=t.done;t.done=!t.done;saveTasks();render();if(t.done)toast("Completed · "+t.text);
-    const listId=listMap[t.cat];
-    if(listId)tapi(`/lists/${encodeURIComponent(listId)}/tasks/${encodeURIComponent(t.id)}`,
-      {method:"PATCH",body:JSON.stringify({status:t.done?"completed":"needsAction"})})
-      .catch(err=>{t.done=was;saveTasks();render();toast("Sync failed: "+err.message,true)})};
+    taskPatch(t,{status:t.done?"completed":"needsAction"},()=>{t.done=was})};
     el.onclick=go;el.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go()}}});
   $$("[data-rm]").forEach(el=>el.onclick=()=>{const t=S.tasks.find(x=>x.id===el.dataset.rm);
     if(!t)return;
     S.tasks=S.tasks.filter(x=>x.id!==el.dataset.rm);saveTasks();render();toast("Removed · "+t.text);
-    const listId=listMap[t.cat];
-    if(listId)tapi(`/lists/${encodeURIComponent(listId)}/tasks/${encodeURIComponent(t.id)}`,{method:"DELETE"})
-      .catch(err=>{S.tasks.push(t);saveTasks();render();toast("Sync failed, restored: "+err.message,true)})});
+    taskDel(t,()=>{S.tasks.push(t)})});
   $$("[data-add]").forEach(b=>{const cat=b.dataset.add;
     const add=()=>{const i=document.querySelector(`[data-in="${CSS.escape(cat)}"]`),
       s=document.querySelector(`[data-sel="${CSS.escape(cat)}"]`),
@@ -1248,13 +1256,7 @@ function wire(){
       S.tasks.push(t);saveTasks();render();
       toast("Added to "+cat);
       const n=document.querySelector(`[data-in="${CSS.escape(cat)}"]`);if(n)n.focus();
-      (async()=>{try{
-        const listId=listMap[cat]||await ensureList(cat);
-        const body={title:t.text,notes:"["+t.tag+"]",status:"needsAction"};
-        if(t.due)body.due=new Date(t.due.slice(0,10)+"T00:00:00Z").toISOString();
-        const d=await tapi(`/lists/${encodeURIComponent(listId)}/tasks`,{method:"POST",body:JSON.stringify(body)});
-        t.id=d.id;saveTasks()
-      }catch(e){/* stays local-only; picked up once Tasks sync is reachable again */}})()};
+      taskPush(t).catch(()=>{})}; // stays local-only; picked up on the next successful sync
     b.onclick=add;
     document.querySelector(`[data-in="${CSS.escape(cat)}"]`).onkeydown=e=>{if(e.key==="Enter")add()}});
   const nc=$("#newcat");if(nc)nc.onkeydown=e=>{if(e.key==="Enter"){const v=nc.value.trim();
