@@ -631,7 +631,11 @@ async function syncGoogleTasksInner(){
 async function pullTasks(){
   try{
     const pulled=[],remoteTicks={};
-    for(const cat of S.cats){
+    // Iterate the lists we actually have, not S.cats: tickPush() falls back to a "Coursework"
+    // list for coursework whose course matches no category, and that list is not a category.
+    // Walking S.cats would write those ticks to Google and never read them back — the card
+    // would sit unticked on every device and be re-pushed as a duplicate on the next tick.
+    for(const cat of Object.keys(listMap)){
       const listId=listMap[cat];if(!listId)continue;
       const d=await tapi(`/lists/${encodeURIComponent(listId)}/tasks?showCompleted=true&showHidden=true&maxResults=100`);
       (d.items||[]).forEach(it=>{
