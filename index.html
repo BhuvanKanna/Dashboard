@@ -594,13 +594,20 @@ async function refreshListMap(){
     const cands=mine.filter(l=>l.title===t);
     let best=cands[0];
     if(cands.length>1){
-      // Duplicate titles exist from before lists were adopted rather than created. Pick the
-      // one that actually holds tasks: latching onto an empty twin is what brings a device
-      // up with a blank rail and then re-seeds over the top of real data.
-      let bestN=-1;
+      // Duplicate titles exist from before lists were adopted rather than created. Do NOT
+      // pick the fullest: a list re-seeded N times holds N copies of the same few titles and
+      // would win, which is precisely how completed ACC tasks came back unticked. Score on
+      // internal consistency instead — a healthy list has no repeated titles at all.
+      let bestScore=-1;
       for(const c of cands){
-        try{const r=await tapi(`${listPath(c.id)}/tasks?showCompleted=true&showHidden=true&maxResults=100`);
-          const n=(r.items||[]).length;if(n>bestN){bestN=n;best=c}}catch(e){}}
+        try{
+          const r=await tapi(`${listPath(c.id)}/tasks?showCompleted=true&showHidden=true&maxResults=100`);
+          const items=r.items||[];
+          const keys=new Set(items.map(i=>parseNotes(i.notes).canvas||i.title));
+          const sc=keys.size*100-(items.length-keys.size)*1000
+            +items.filter(i=>i.status==="completed").length*10;
+          if(sc>bestScore){bestScore=sc;best=c}
+        }catch(e){}}
     }
     listMap[t]=best.id}
   saveListMap();listsFetched=true;
