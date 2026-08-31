@@ -438,7 +438,10 @@ function loadLocal(){
     // sideHide is deliberately NOT restored — Controls always loads collapsed.
     if(p.railHide)S.railHide=p.railHide}catch(e){}
   try{const t=localStorage.getItem(LS.tasks);if(t)S.tasks=JSON.parse(t)}catch(e){}
-  try{S.doneEv=JSON.parse(localStorage.getItem(LS.doneEv)||"{}")}catch(e){S.doneEv={}}
+  // Values were bare ISO strings before ticks were synced; coerce so old ticks survive.
+  try{const raw=JSON.parse(localStorage.getItem(LS.doneEv)||"{}");S.doneEv={};
+    Object.keys(raw).forEach(k=>{const v=raw[k];S.doneEv[k]=typeof v==="string"?{at:v}:v})}
+  catch(e){S.doneEv={}}
 }
 const catCol=cat=>S.catColors[cat]||"#8B5CF6";
 const matchesSearch=t=>!S.search||t.toLowerCase().includes(S.search.toLowerCase());
@@ -617,12 +620,14 @@ async function syncGoogleTasks(){
   await pullTasks()}
 async function pullTasks(){
   try{
-    const pulled=[];
+    const pulled=[],remoteTicks={};
     for(const cat of S.cats){
       const listId=listMap[cat];if(!listId)continue;
       const d=await tapi(`/lists/${encodeURIComponent(listId)}/tasks?showCompleted=true&showHidden=true&maxResults=100`);
       (d.items||[]).forEach(it=>{
         const n=parseNotes(it.notes),gdate=it.due?it.due.slice(0,10):null;
+        if(n.canvas){ // a coursework tick, not a task — never let it reach the rail
+          remoteTicks[n.canvas]={at:it.completed||it.updated,taskId:it.id,listId};return}
         // Google wins on any disagreement — a mismatch means the date was edited in the
         // Google Tasks app, which is the only place that can change it behind our back.
         // The marker only survives when it agrees, and then it contributes the time.
@@ -633,6 +638,12 @@ async function pullTasks(){
     // Never silently drop a task Google hasn't confirmed yet — keep anything added in the last
     // 2 minutes (its write-through push may still be in flight) or anything with no list yet.
     const keep=S.tasks.filter(t=>!pulledIds.has(t.id)&&(!listMap[t.cat]||Date.now()-(t._addedAt||0)<120000));
+    // A tick that reached Google but is no longer there was unticked on another device.
+    // Entries with no taskId are local-only (offline tick) and must survive untouched.
+    Object.keys(S.doneEv).forEach(k=>{
+      const rec=S.doneEv[k];
+      if(rec&&rec.taskId&&!remoteTicks[k])delete S.doneEv[k]});
+    Object.assign(S.doneEv,remoteTicks);saveDone();
     S.tasks=[...pulled,...keep];saveTasks();render()}
   catch(e){console.warn("Tasks pull failed, keeping local copy:",e.message)}}
 
@@ -662,6 +673,26 @@ function taskDel(t,undo){
   if(!listId)return;
   tapi(taskPath(listId,t.id),{method:"DELETE"})
     .catch(e=>{undo();saveTasks();render();toast("Sync failed, restored: "+e.message,true)})}
+// Canvas coursework has no completion flag of its own. A tick becomes a completed Google
+// Task carrying a [canvas:calId|eventId] marker, so it crosses devices and shows as done in
+// the Tasks app too. pullTasks() diverts anything carrying that marker back into S.doneEv —
+// without that, every tick would come back down as a duplicate card in the rail.
+function resolveCat(course){
+  const c=String(course||"").toLowerCase().replace(/\s+/g," ");
+  return S.cats.find(x=>!isExcluded(x)&&c.includes(x.toLowerCase().replace(/\s+/g," ")))
+    ||"Coursework"}
+async function tickPush(ev){
+  const key=evKey(ev),sc=splitCourse(ev.title),cat=resolveCat(sc.course);
+  const listId=listMap[cat]||await ensureList(cat);
+  const body={title:sc.title||ev.title,status:"completed",
+    notes:buildNotes({tag:"General",canvas:key}),
+    due:new Date(iso(ev.start)+"T00:00:00Z").toISOString()};
+  const d=await tapi(`${listPath(listId)}/tasks`,{method:"POST",body:JSON.stringify(body)});
+  S.doneEv[key]={at:new Date().toISOString(),taskId:d.id,listId};saveDone()}
+// Takes the record, not the key — the caller removes the entry optimistically before calling.
+function tickDel(rec){
+  if(!rec||!rec.taskId||!rec.listId)return Promise.resolve();
+  return tapi(taskPath(rec.listId,rec.taskId),{method:"DELETE"})}
 
 async function loadCals(){
   const d=await api("/users/me/calendarList?minAccessRole=reader");
@@ -766,7 +797,7 @@ function upcomingAssignments(){
   return S.upcoming.filter(e=>isAssignment(e)&&!evDone(e)).sort((x,y)=>x.start-y.start)}
 function doneAssignments(){
   return S.upcoming.filter(e=>isAssignment(e)&&evDone(e))
-    .sort((x,y)=>new Date(S.doneEv[evKey(y)])-new Date(S.doneEv[evKey(x)]))}
+    .sort((x,y)=>new Date(S.doneEv[evKey(y)].at)-new Date(S.doneEv[evKey(x)].at))}
 // Everything left: exams, and anything on a calendar we manage by hand. Class meetings are
 // excluded outright so the strip isn't drowned by the ~14 recurring meetings a week.
 function upcomingEvents(){
@@ -1267,10 +1298,15 @@ function wire(){
       ()=>{t.tag=old})});
   $$("[data-evdone]").forEach(b=>b.onclick=e=>{
     e.stopPropagation(); // the card behind it opens the event editor
-    const k=b.dataset.evdone,was=S.doneEv[k];
-    if(was)delete S.doneEv[k];else S.doneEv[k]=new Date().toISOString();
-    saveDone();render();
-    if(!was)toast("Completed")});
+    const k=b.dataset.evdone,rec=S.doneEv[k];
+    if(rec){
+      delete S.doneEv[k];saveDone();render();
+      tickDel(rec).catch(err=>{S.doneEv[k]=rec;saveDone();render();
+        toast("Sync failed: "+err.message,true)})}
+    else{
+      S.doneEv[k]={at:new Date().toISOString()};saveDone();render();toast("Completed");
+      const ev=S.upcoming.find(x=>evKey(x)===k);
+      if(ev)tickPush(ev).catch(()=>{})}}); // stays local; reconciles on the next pull
   const dfold=$("[data-donefold]");
   if(dfold)dfold.onclick=()=>{S.showDone=!S.showDone;savePrefs();render()};
   $$("[data-tg]").forEach(el=>{const go=()=>{const t=S.tasks.find(x=>x.id===el.dataset.tg);
