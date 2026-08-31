@@ -127,6 +127,7 @@ button,input,select,textarea{font-family:inherit;color:inherit}
   font-size:.55rem;color:var(--faint);letter-spacing:.08em;padding:2px 0}
 .readout div b{color:var(--muted);font-weight:500}
 .readout div.hot b{color:var(--alert-hot)}
+.readout div.good b{color:var(--ok)}
 
 /* ── main column — left half only, and a little under half at that ── */
 .main{flex:0 0 48%;max-width:48%;min-width:0;display:flex;flex-direction:column;overflow:hidden;gap:13px}
@@ -420,7 +421,11 @@ let S={view:"week",cursor:new Date(),mini:new Date(),cals:[],events:[],upcoming:
   editTask:null,editCat:null,editDue:null,search:"",_searchFocused:false,_searchPos:0,weather:null,
   // Canvas coursework has no "done" flag of its own — completion is ours, keyed by
   // calId|eventId and kept locally. Value is the ISO time it was ticked off.
-  doneEv:{},showDone:false};
+  doneEv:{},showDone:false,
+  // Per-service health, surfaced in the Controls readout. null = untried, true = last call
+  // OK, string = last error. Exists because every Google call here fails silently by design,
+  // which is how the Tasks API being switched off went unnoticed for weeks.
+  svc:{cal:null,tasks:null}};
 
 function savePrefs(){localStorage.setItem(LS.prefs,JSON.stringify({vis:S.vis,colors:S.colors,catColors:S.catColors,
   view:S.view,interval:S.interval,collapsed:S.collapsed,cats:S.cats,sideHide:S.sideHide,railHide:S.railHide}))}
@@ -500,11 +505,19 @@ function relDay(d){
   return (d.getMonth()+1)+"/"+d.getDate()}
 
 let tokenClient=null,token=null,tokenExp=0,pending=null;
+// A cached grant predating a SCOPE change still satisfies prompt:"" and hands back a token
+// missing the new scope — silently. Ask Google what was really granted instead of guessing.
+let scopeRetried=false;
 function initAuth(){
   if(!window.google||!google.accounts)return setTimeout(initAuth,300);
   tokenClient=google.accounts.oauth2.initTokenClient({client_id:CLIENT_ID,scope:SCOPE,
     callback:r=>{
       if(r.error){pending&&pending.rej(new Error(r.error));pending=null;setStat("err","Sign-in cancelled");render();return}
+      if(!scopeRetried&&google.accounts.oauth2.hasGrantedAllScopes&&
+         !google.accounts.oauth2.hasGrantedAllScopes(r,...SCOPE.split(" "))){
+        scopeRetried=true;                       // once per page load, so this cannot loop
+        tokenClient.requestAccessToken({prompt:"consent"});
+        return}                                  // `pending` stays set; the retry resolves it
       token=r.access_token;tokenExp=Date.now()+(r.expires_in-90)*1000;
       sessionStorage.setItem("bd.tok",JSON.stringify({token,tokenExp}));
       localStorage.setItem("bd.connected","1");S.signedIn=true;
@@ -529,14 +542,18 @@ async function api(path,opts={}){
   const r=await fetch(BASE+path,{...opts,headers:{Authorization:"Bearer "+token,
     "Content-Type":"application/json",...(opts.headers||{})}});
   if(r.status===401){token=null;await ensureToken();return api(path,opts)}
-  if(!r.ok){let m=r.status+"";try{m=(await r.json()).error.message}catch(e){}throw new Error(m)}
+  if(!r.ok){let m=r.status+"";try{m=(await r.json()).error.message}catch(e){}
+    S.svc.cal=m;const e=new Error(m);e.status=r.status;throw e}
+  S.svc.cal=true;
   return r.status===204?null:r.json()}
 async function tapi(path,opts={}){
   await ensureToken();
   const r=await fetch(TASKS_BASE+path,{...opts,headers:{Authorization:"Bearer "+token,
     "Content-Type":"application/json",...(opts.headers||{})}});
   if(r.status===401){token=null;await ensureToken();return tapi(path,opts)}
-  if(!r.ok){let m=r.status+"";try{m=(await r.json()).error.message}catch(e){}throw new Error(m)}
+  if(!r.ok){let m=r.status+"";try{m=(await r.json()).error.message}catch(e){}
+    S.svc.tasks=m;const e=new Error(m);e.status=r.status;throw e}
+  S.svc.tasks=true;
   return r.status===204?null:r.json()}
 function setStat(s,msg){S.status=s;S.error=msg||null;const el=document.getElementById("stat");
   if(el){el.className="stat "+s;el.innerHTML=`<span class="dot"></span>${
@@ -813,7 +830,12 @@ function readout(){
     <div><span>SYS</span><b>NOMINAL</b></div>
     <div><span>CAL</span><b>${S.cals.length}</b></div>
     <div><span>TASKS</span><b>${open}</b></div>
-    <div class="${u?"hot":""}"><span>URGENT</span><b>${u}</b></div></div>`}
+    <div class="${u?"hot":""}"><span>URGENT</span><b>${u}</b></div>
+    ${svcRow("CAL·IO",S.svc.cal)}${svcRow("TSK·IO",S.svc.tasks)}</div>`}
+function svcRow(lbl,v){
+  const cls=v===true?"good":v==null?"":"hot";
+  const txt=v===true?"OK":v==null?"—":String(v).slice(0,26);
+  return `<div class="${cls}"><span>${lbl}</span><b>${esc(txt)}</b></div>`}
 function gate(){
   return `<div class="gate"><h2>Connect Google Calendar</h2>
     <p>Sign in with your Google account to load your calendars.</p>
