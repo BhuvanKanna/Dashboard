@@ -528,23 +528,41 @@ function initAuth(){
         tokenClient.requestAccessToken({prompt:"consent"});
         return}                                  // `pending` stays set; the retry resolves it
       token=r.access_token;tokenExp=Date.now()+(r.expires_in-90)*1000;
-      sessionStorage.setItem("bd.tok",JSON.stringify({token,tokenExp}));
+      // localStorage, not sessionStorage: iOS Safari reclaims a backgrounded tab's JS state
+      // (and with it sessionStorage) far more eagerly than desktop Chrome ever restarts, so
+      // a sessionStorage-only token forced a silent popup reconnect on almost every iPhone
+      // open. Caching here means a still-valid token survives that reload with no popup at all.
+      localStorage.setItem("bd.tok",JSON.stringify({token,tokenExp}));
       localStorage.setItem("bd.connected","1");S.signedIn=true;
-      if(pending){pending.res();pending=null}}});
-  try{const c=JSON.parse(sessionStorage.getItem("bd.tok")||"null");
+      if(pending){pending.res();pending=null}},
+    error_callback:e=>{
+      // Fires when the popup is blocked, closed, or fails to open — the callback above is
+      // NEVER invoked in that case (this is documented GIS behavior), so without this the
+      // whole sign-in hangs forever with no error and no way out except a hard refresh. That
+      // silent hang is what read as "not logging in properly" with popups piling up: the
+      // user, seeing nothing happen, taps Sign in again while the first attempt is still
+      // stuck open.
+      pending&&pending.rej(new Error(e&&e.type||"popup-failed"));pending=null;
+      S.signedIn=false;setStat("err","Sign-in popup was blocked — tap Sign in to try again");render()}});
+  try{const c=JSON.parse(localStorage.getItem("bd.tok")||"null");
     if(c&&c.tokenExp>Date.now()){token=c.token;tokenExp=c.tokenExp;S.signedIn=true;boot();return}}catch(e){}
   if(localStorage.getItem("bd.connected"))connect(false);else render();
 }
 function connect(interactive=true){
+  // A request is already in flight — opening a second popup on top of it is exactly how
+  // repeat windows happened (an impatient second tap while the first attempt was still
+  // hung, back when a blocked/closed popup never called back at all).
+  if(pending)return Promise.resolve();
   return new Promise((res,rej)=>{pending={res:()=>{res();boot()},rej};
     tokenClient.requestAccessToken({prompt:interactive?"consent":""})}).catch(()=>{})}
 function ensureToken(){
   if(token&&Date.now()<tokenExp)return Promise.resolve();
+  if(pending)return Promise.reject(new Error("sign-in already in progress"));
   return new Promise((res,rej)=>{pending={res,rej};tokenClient.requestAccessToken({prompt:""})})}
 function signOut(){
   if(token)google.accounts.oauth2.revoke(token,()=>{});
   token=null;tokenExp=0;S.signedIn=false;S.cals=[];S.events=[];S.upcoming=[];
-  sessionStorage.removeItem("bd.tok");localStorage.removeItem("bd.connected");render()}
+  localStorage.removeItem("bd.tok");localStorage.removeItem("bd.connected");render()}
 
 async function api(path,opts={}){
   await ensureToken();
