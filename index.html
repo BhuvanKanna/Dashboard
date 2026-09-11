@@ -1109,7 +1109,7 @@ function upcomingHTML(){
     ...asg.map(e=>{const c=splitCourse(e.title);
       return {when:e.allDay?relDay(e.start):relWhen(e.start),kind:"DUE",
         ttl:c.title,sub:(c.course||"Canvas")+" · Due",sort:e.start,ev:`${e.id}|${e.calId}`,
-        tier:tier(e.allDay?e.start<t0:e.start<now,e.start),
+        tier:tier(e.allDay?e.start<t0:e.start<now,e.start),asap:false,
         box:{attr:"data-evdone",val:evKey(e),on:false}}}),
     // An ASAP task is urgent by definition — that is what the tag means — so it never
     // drops to the "later" tier just because it carries no date.
@@ -1117,8 +1117,12 @@ function upcomingHTML(){
       return {when:dt?relWhen(dt):"no date",kind:"TASK",
         ttl:t.text,sub:t.cat+" · "+t.tag,sort:dt,ev:null,
         tier:t.tag==="ASAP"&&!(dt&&dt<now)?"urgent":tier(!!dt&&dt<now,dt),
+        asap:t.tag==="ASAP",
         box:{attr:"data-tg",val:t.id,on:false}}})
-  ].sort((a,b)=>{if(a.sort&&b.sort)return a.sort-b.sort;if(a.sort)return -1;if(b.sort)return 1;return 0});
+  // ASAP always leads the feed regardless of date — that's what the tag means — then
+  // everything else falls in by date, undated last.
+  ].sort((a,b)=>{if(a.asap!==b.asap)return a.asap?-1:1;
+      if(a.sort&&b.sort)return a.sort-b.sort;if(a.sort)return -1;if(b.sort)return 1;return 0});
   const urgentN=taskItems.filter(x=>x.tier.startsWith("urgent")).length;
   const tkCards=taskItems.map(x=>cardHTML("task "+x.tier,x.when,x.kind,x.ttl,x.sub,x.ev,x.box));
 
